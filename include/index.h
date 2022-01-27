@@ -103,6 +103,21 @@ namespace diskann {
     DISKANN_DLLEXPORT void search_with_opt_graph(const T *query, size_t K,
                                                  size_t L, unsigned *indices);
 
+#ifdef THETA_GUIDED_SEARCH
+    // [SJ]: Adding approximation scheme
+    float _approx_rate;
+    unsigned _hash_bitwidth;
+    float* _hash_function = nullptr;
+    unsigned* _hash_value = nullptr;
+    unsigned _hash_len;
+    Distance<float>* _distance_hash;
+    
+    DISKANN_DLLEXPORT void GenerateHashFunction(const char* file_name);
+    DISKANN_DLLEXPORT void GenerateHashValue(const char* file_name);
+    DISKANN_DLLEXPORT bool LoadHashFunction(const char* file_name);
+    DISKANN_DLLEXPORT bool LoadHashValue(const char* file_name);
+#endif
+
     /*  Internals of the library */
    protected:
     typedef std::vector<SimpleNeighbor>        vecNgh;

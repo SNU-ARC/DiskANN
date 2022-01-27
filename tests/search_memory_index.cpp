@@ -62,6 +62,27 @@ int search_memory_index(int argc, char** argv) {
   std::string result_output_prefix(argv[ctr++]);
   //  bool        use_optimized_search = std::atoi(argv[ctr++]);
 
+#ifdef THETA_GUIDED_SEARCH
+  // [SJ]: Adding approximation scheme
+  std::string approx_scheme(argv[ctr++]);
+  std::cout << approx_scheme << std::endl;
+  if ((approx_scheme != std::string("baseline")) &&
+      (approx_scheme != std::string("test")) &&
+      (approx_scheme != std::string("sort_by_exact_theta")) &&
+      (approx_scheme != std::string("aid_by_exact_theta")) &&
+      (approx_scheme != std::string("aid_by_approx_theta"))) {
+    std::cout << "Must mention which approximation scheme to use" << std::endl;
+    std::cout << "\t- baseline: No approximation scheme" << std::endl;
+    std::cout << "\t- sort_by_exact_theta: Use exact angular distance instead of distance" << std::endl;
+    std::cout << "\t- aid_by_exact_theta: Use exact angular distance to filter less relevant vertices" << std::endl;
+    std::cout << "\t- aid_by_approx_theta: Use hamming distance of hash values to filter less relevant vertices" << std::endl;
+
+    return -1;
+  }
+  float approx_rate = std::atof(argv[ctr++]);
+  unsigned hash_bitwidth = std::atoi(argv[ctr++]);
+#endif
+
   bool calc_recall_flag = false;
 
   for (; ctr < (_u32) argc; ctr++) {
@@ -92,11 +113,30 @@ int search_memory_index(int argc, char** argv) {
   std::cout.precision(2);
 
   diskann::Index<T> index(metric, data_file.c_str());
+
   index.load(memory_index_file.c_str());  // to load NSG
   std::cout << "Index loaded" << std::endl;
 
   if (metric == diskann::FAST_L2)
     index.optimize_graph();
+
+#ifdef THETA_GUIDED_SEARCH
+  index._approx_rate = approx_rate;
+  index._hash_bitwidth = hash_bitwidth;
+  // [SJ]: Load hash_function & hash_value
+  std::string hash_function_bin = memory_index_file;
+  std::string hash_value_bin = memory_index_file;
+  hash_function_bin += ".hash_function";
+  hash_value_bin += ".hash_value";
+  if (index.LoadHashFunction(hash_function_bin.c_str())) {
+    if (!index.LoadHashValue(hash_value_bin.c_str()))
+      index.GenerateHashValue(hash_value_bin.c_str());
+  }
+  else {
+    index.GenerateHashFunction(hash_function_bin.c_str());
+    index.GenerateHashValue(hash_value_bin.c_str());
+  }
+#endif
 
   diskann::Parameters paras;
   std::string         recall_string = "Recall@" + std::to_string(recall_at);
@@ -167,11 +207,24 @@ int search_memory_index(int argc, char** argv) {
     test_id++;
   }
 
+#ifdef THETA_GUIDED_SEARCH
+  delete[] index._hash_function;
+#endif
   diskann::aligned_free(query);
   return 0;
 }
 
 int main(int argc, char** argv) {
+#ifdef THETA_GUIDED_SEARCH
+  if (argc < 14) {
+    std::cout
+        << "Usage: " << argv[0]
+        << "  [index_type<float/int8/uint8>]  [dist_fn (l2/mips/fast_l2)] "
+           "[data_file.bin]  "
+           "[memory_index_path]  [num_threads] "
+           "[query_file.bin]  [truthset.bin (use \"null\" for none)] "
+           " [K] [result_output_prefix] [approx_scheme] [approx_rate] [hash_bitwidth]"
+#else
   if (argc < 11) {
     std::cout
         << "Usage: " << argv[0]
@@ -180,6 +233,7 @@ int main(int argc, char** argv) {
            "[memory_index_path]  [num_threads] "
            "[query_file.bin]  [truthset.bin (use \"null\" for none)] "
            " [K] [result_output_prefix]"
+#endif
            " [L1]  [L2] etc. See README for more information on parameters. "
         << std::endl;
     exit(-1);

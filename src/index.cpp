@@ -1098,7 +1098,12 @@ namespace diskann {
   void Index<T, TagT>::optimize_graph() {  // use after build or load
     _data_len = (_aligned_dim + 1) * sizeof(float);
     _neighbor_len = (_width + 1) * sizeof(unsigned);
+#ifdef THETA_GUIDED_SEARCH
+    _hash_len = _aligned_dim * sizeof(unsigned);
+    _node_size = _data_len + _neighbor_len + _hash_len;
+#else
     _node_size = _data_len + _neighbor_len;
+#endif
     _opt_graph = (char *) malloc(_node_size * _nd);
     DistanceFastL2<T> *dist_fast = (DistanceFastL2<T> *) _distance;
     for (unsigned i = 0; i < _nd; i++) {
@@ -1173,6 +1178,19 @@ namespace diskann {
     // std::cout<<L<<std::endl;
 
     std::sort(retset.begin(), retset.begin() + L);
+#ifdef THETA_GUIDED_SEARCH
+    DistanceFastL2<float>* dist_hash = (DistanceFastL2<float>*) _distance_hash;
+    float query_norm = dist_fast->norm(query, (unsigned) _aligned_dim);
+    unsigned hash_size = _hash_bitwidth >> 5;
+    unsigned* hashed_query = new unsigned[hash_size];
+    for (unsigned num_integer = 0; num_integer < hash_size; num_integer++) {
+      hashed_query[num_integer] = 0;
+      for (unsigned bit_count = 0; bit_count < 32; bit_count++) {
+        hashed_query[num_integer] = hashed_query[num_integer] >> 1;
+        hashed_query[num_integer] = hashed_query[num_integer] | (dist_hash->DistanceInnerProduct<float>::inner_product((float*)query, &_hash_function[_aligned_dim * (32 * num_integer + bit_count)], _aligned_dim) > 0 ? 0x80000000 : 0);
+      }
+    }
+#endif
     int k = 0;
     while (k < (int) L) {
       int nk = L;
@@ -1186,10 +1204,62 @@ namespace diskann {
             (unsigned *) (_opt_graph + _node_size * n + _data_len);
         unsigned MaxM = *neighbors;
         neighbors++;
-        for (unsigned m = 0; m < MaxM; ++m)
+        for (unsigned m = 0; m < MaxM; ++m) {
           _mm_prefetch(_opt_graph + _node_size * neighbors[m], _MM_HINT_T0);
+#ifdef THETA_GUIDED_SEARCH
+          for (unsigned n = 0; n < hash_size; n++)
+            _mm_prefetch(_opt_graph + _node_size * neighbors[m] + _data_len + _neighbor_len + n * sizeof(unsigned), _MM_HINT_T0);
+#endif
+        }
+#ifdef THETA_GUIDED_SEARCH
+        std::vector<unsigned long long> theta_queue(MaxM, -1);
+        unsigned theta_queue_size = 0;
+
+        for (unsigned m = 0; m < MaxM; m++) {
+          unsigned id = neighbors[m];
+          if (flags[id]) continue;
+
+          unsigned long long hamming_result[hash_size >> 1];
+          unsigned hamming_distance = 0;
+          unsigned* hash_value_address = (unsigned*)(_opt_graph + _node_size * id + _data_len + _neighbor_len);
+#ifdef __AVX__
+          for (unsigned i = 0; i < hash_size; i += 8) {
+            __m256i hashed_query_avx, hash_value_avx, hamming_result_avx;
+            hashed_query_avx = _mm256_loadu_si256((__m256i*)&hashed_query[i]);
+            hash_value_avx = _mm256_loadu_si256((__m256i*)(hash_value_address + i));
+            hamming_result_avx = _mm256_xor_si256(hashed_query_avx, hash_value_avx);
+#ifdef __AVX512VPOPCNTDQ__
+            hamming_result_avx = _mm256_popcnt_epi64(hamming_result_avx);
+            _mm256_storeu_si256((__m256i*)&hamming_result[i >> 1], hamming_result_avx);
+            for (unsigned j = (i >> 1); j < (i >> 1) + 4; j++)
+              hamming_distance += hamming_result[j];
+          }
+#else
+            _mm256_storeu_si256((__m256i*)&hamming_result[i >> 1], hamming_result_avx);
+            for (unsigned j = (i >> 1); j < (i >> 1) + 4; j++)
+              hamming_distance += __builtin_popcountll(hamming_result[j]);
+          }
+#endif
+#else
+          for (unsigned num_integer = 0; num_integer < _hash_bitwidth / (8 * sizeof(unsigned)); num_integer++;) {
+            hamming_result[num_integer] = hashed_query[num_integer] ^ hash_value_address[num_integer];
+            hamming_distance += __builtin_popcount(hamming_result[num_integer]);
+          }
+#endif
+          unsigned long long cat_hamming_id = (((unsigned long long)hamming_distance << 32) | id);
+          theta_queue[theta_queue_size] = cat_hamming_id;
+          theta_queue_size++;
+        }
+        if (theta_queue.size() > 0)
+          sort(theta_queue.begin(), theta_queue.end());
+#endif
+#ifdef THETA_GUIDED_SEARCH
+        for (unsigned m = 0; m < (unsigned)ceil(theta_queue_size * _approx_rate); m++) {
+          unsigned id = theta_queue[m] & 0xFFFFFFFF;
+#else
         for (unsigned m = 0; m < MaxM; ++m) {
           unsigned id = neighbors[m];
+#endif
           if (flags[id])
             continue;
           flags[id] = 1;
@@ -1830,6 +1900,114 @@ namespace diskann {
     _tag_to_location.erase(tag);
     return 0;
   }
+
+#ifdef THETA_GUIDED_SEARCH
+  // [SJ]: Adding approximation scheme
+  template<typename T, typename TagT>
+  void Index<T, TagT>::GenerateHashFunction (const char* file_name) {
+    DistanceFastL2<float>* dist_hash = (DistanceFastL2<float>*) _distance_hash;
+    std::normal_distribution<float> norm_dist (0.0, 1.0);
+    std::mt19937 gen(rand());
+    _hash_function = new float[_aligned_dim * _hash_bitwidth];
+    float hash_function_norm[_hash_bitwidth - 1];
+
+    std::cout << "GenerateHashFunction" << std::endl;
+    for (unsigned dim = 0; dim < _aligned_dim; dim++) {
+      _hash_function[dim] = norm_dist(gen);
+    }
+    hash_function_norm[0] = dist_hash->norm(_hash_function, _aligned_dim);
+
+    for (unsigned hash_col = 1; hash_col < _hash_bitwidth; hash_col++) {
+      for (unsigned dim = 0; dim < _aligned_dim; dim++)
+        _hash_function[hash_col * _aligned_dim + dim] = norm_dist(gen);
+      hash_function_norm[hash_col] = dist_hash->norm(&_hash_function[hash_col * _aligned_dim], _aligned_dim);
+
+      // Gram-schmidt process
+      for (unsigned compare_col = 0; compare_col < hash_col; compare_col++) {
+        float inner_product_between_hash = dist_hash->DistanceInnerProduct<float>::inner_product(&_hash_function[hash_col * _aligned_dim], &_hash_function[compare_col * _aligned_dim], (unsigned)_aligned_dim);
+        for (unsigned dim = 0; dim < _aligned_dim; dim++) {
+          _hash_function[hash_col * _aligned_dim + dim] -= (inner_product_between_hash / hash_function_norm[compare_col] * _hash_function[compare_col * _aligned_dim + dim]);
+        }
+      }
+    }
+
+    std::ofstream file_hash_function(file_name, std::ios::binary | std::ios::out);
+    file_hash_function.write((char*)&_hash_bitwidth, sizeof(unsigned));
+    file_hash_function.write((char*)&_hash_function, _aligned_dim * _hash_bitwidth * sizeof(float));
+    file_hash_function.close();
+  }
+
+  template<typename T, typename TagT>
+  void Index<T, TagT>::GenerateHashValue (const char* file_name) {
+    DistanceFastL2<float>* dist_hash = (DistanceFastL2<float>*) _distance_hash;
+
+    std::cout << "GenerateHashValue" << std::endl;
+    for (unsigned i = 0; i < _nd; i++) {
+      unsigned* hash_value = (unsigned*)(_opt_graph + _node_size * i + _data_len + _neighbor_len);
+      float* vertex = (float*)(_opt_graph + _node_size * i + sizeof(float));
+
+      for (unsigned i = 0; i < _hash_bitwidth / (8 * sizeof(unsigned)); i++) {
+        unsigned hash_value_temp = 0;
+        for (unsigned bit_count = 0; bit_count < (8 * sizeof(unsigned)); bit_count++) {
+          hash_value_temp = hash_value_temp >> 1;
+          hash_value_temp = hash_value_temp | (dist_hash->DistanceInnerProduct<float>::inner_product(vertex, &_hash_function[_aligned_dim * ((8 * sizeof(unsigned)) * i + bit_count)], _aligned_dim) > 0 ? 0x80000000 : 0);
+        }
+        hash_value[i] = hash_value_temp;
+      }
+    }
+
+    std::ofstream file_hash_value(file_name, std::ios::binary | std::ios::out);
+    for (unsigned i = 0; i < _nd; i++) {
+      _hash_value = (unsigned*)(_opt_graph + _node_size * i + _data_len + _neighbor_len);
+      for (unsigned j = 0; j < (_hash_bitwidth >> 5); j++) {
+        file_hash_value.write((char*)&_hash_value, 4);
+        _hash_value++;
+      }
+    }
+    file_hash_value.close();
+  }
+
+  template<typename T, typename TagT>
+  bool Index<T, TagT>::LoadHashFunction (const char* file_name) {
+    std::ifstream file_hash_function(file_name, std::ios::binary);
+    if (file_hash_function.is_open()) {
+      unsigned hash_bitwidth_temp;
+      file_hash_function.read((char*)&hash_bitwidth_temp, sizeof(unsigned));
+      if (_hash_bitwidth != hash_bitwidth_temp) {
+        file_hash_function.close();
+        return false;
+      }
+
+      std::cout << "LoadHashFunction" << std::endl;
+      _hash_function = new float[_aligned_dim * _hash_bitwidth];
+      file_hash_function.read((char*)_hash_function, _aligned_dim * _hash_bitwidth * sizeof(float));
+      file_hash_function.close();
+      return true;
+    }
+    else
+      return false;
+  }
+
+  template<typename T, typename TagT>
+  bool Index<T, TagT>::LoadHashValue (const char* file_name) {
+    std::ifstream file_hash_value(file_name, std::ios::binary);
+    if (file_hash_value.is_open()) {
+      std::cout << "LoadHashValue" << std::endl;
+      for (unsigned i = 0; i < _nd; i++) {
+        _hash_value = (unsigned*)(_opt_graph + _node_size * i + _data_len + _neighbor_len);
+        for (unsigned j = 0; j < (_hash_bitwidth >> 5); j++) {
+          file_hash_value.read((char*)_hash_value, 4);
+          _hash_value++;
+        }
+      }
+      file_hash_value.close();
+      
+      return true;
+    }
+    else
+      return false;
+  }
+#endif
 
   // EXPORTS
   template DISKANN_DLLEXPORT class Index<float>;
