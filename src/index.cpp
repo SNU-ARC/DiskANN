@@ -1268,8 +1268,16 @@ namespace diskann {
           data++;
           float dist =
               dist_fast->compare(query, data, norm, (unsigned) _aligned_dim);
+#ifdef GET_MISS_TRAVERSE
+          total_traverse++;
+          if (dist >= retset[L - 1].distance) {
+            total_traverse_miss++;
+            continue;
+          }
+#else
           if (dist >= retset[L - 1].distance)
             continue;
+#endif
           Neighbor nn(id, dist, true);
           int      r = InsertIntoPool(retset.data(), L, nn);
 

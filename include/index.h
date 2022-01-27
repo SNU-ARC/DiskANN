@@ -103,6 +103,10 @@ namespace diskann {
     DISKANN_DLLEXPORT void search_with_opt_graph(const T *query, size_t K,
                                                  size_t L, unsigned *indices);
 
+#ifdef GET_MISS_TRAVERSE
+    unsigned total_traverse;
+    unsigned total_traverse_miss;
+#endif
 #ifdef THETA_GUIDED_SEARCH
     // [SJ]: Adding approximation scheme
     float _approx_rate;
