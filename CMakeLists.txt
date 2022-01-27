@@ -98,7 +98,8 @@ else()
 	add_compile_options(-march=native -Wall -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -fopenmp -fopenmp-simd -funroll-loops -Wfatal-errors -DUSE_ACCELERATED_PQ -DUSE_AVX2)
 endif()
 
-add_definitions(-DGET_MISS_TRAVERSE)
+#add_definitions(-DGET_MISS_TRAVERSE)
+add_definitions(-DGET_MISS_TRAVERSE -DSORT_BY_EXACT_THETA)
 #add_definitions(-DGET_MISS_TRAVERSE -DTHETA_GUIDED_SEARCH)
 
 add_subdirectory(src)

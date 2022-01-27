@@ -1141,6 +1141,23 @@ namespace diskann {
     unsigned MaxM_ep = *neighbors;
     neighbors++;
 
+#ifdef SORT_BY_EXACT_THETA
+    float query_norm = dist_fast->norm(query, (unsigned) _aligned_dim);
+#endif
+#ifdef THETA_GUIDED_SEARCH
+    DistanceFastL2<float>* dist_hash = (DistanceFastL2<float>*) _distance_hash;
+    float query_norm = dist_fast->norm(query, (unsigned) _aligned_dim);
+    unsigned hash_size = _hash_bitwidth >> 5;
+    unsigned* hashed_query = new unsigned[hash_size];
+    for (unsigned num_integer = 0; num_integer < hash_size; num_integer++) {
+      hashed_query[num_integer] = 0;
+      for (unsigned bit_count = 0; bit_count < 32; bit_count++) {
+        hashed_query[num_integer] = hashed_query[num_integer] >> 1;
+        hashed_query[num_integer] = hashed_query[num_integer] | (dist_hash->DistanceInnerProduct<float>::inner_product((float*)query, &_hash_function[_aligned_dim * (32 * num_integer + bit_count)], _aligned_dim) > 0 ? 0x80000000 : 0);
+      }
+    }
+#endif
+
     for (; tmp_l < L && tmp_l < MaxM_ep; tmp_l++) {
       init_ids[tmp_l] = neighbors[tmp_l];
       flags[init_ids[tmp_l]] = true;
@@ -1169,8 +1186,13 @@ namespace diskann {
       T *   x = (T *) (_opt_graph + _node_size * id);
       float norm_x = *x;
       x++;
+#ifdef SORT_BY_EXACT_THETA
+      float inner_product_value = dist_fast->DistanceInnerProduct<T>::inner_product(query, x, (unsigned)_aligned_dim);
+      float dist = acos(inner_product_value / sqrt(query_norm * norm_x)) * 180.0 / 3.1456265;
+#else
       float dist =
           dist_fast->compare(x, query, norm_x, (unsigned) _aligned_dim);
+#endif
       retset[i] = Neighbor(id, dist, true);
       flags[id] = true;
       L++;
@@ -1178,19 +1200,6 @@ namespace diskann {
     // std::cout<<L<<std::endl;
 
     std::sort(retset.begin(), retset.begin() + L);
-#ifdef THETA_GUIDED_SEARCH
-    DistanceFastL2<float>* dist_hash = (DistanceFastL2<float>*) _distance_hash;
-    float query_norm = dist_fast->norm(query, (unsigned) _aligned_dim);
-    unsigned hash_size = _hash_bitwidth >> 5;
-    unsigned* hashed_query = new unsigned[hash_size];
-    for (unsigned num_integer = 0; num_integer < hash_size; num_integer++) {
-      hashed_query[num_integer] = 0;
-      for (unsigned bit_count = 0; bit_count < 32; bit_count++) {
-        hashed_query[num_integer] = hashed_query[num_integer] >> 1;
-        hashed_query[num_integer] = hashed_query[num_integer] | (dist_hash->DistanceInnerProduct<float>::inner_product((float*)query, &_hash_function[_aligned_dim * (32 * num_integer + bit_count)], _aligned_dim) > 0 ? 0x80000000 : 0);
-      }
-    }
-#endif
     int k = 0;
     while (k < (int) L) {
       int nk = L;
@@ -1266,8 +1275,13 @@ namespace diskann {
           T *   data = (T *) (_opt_graph + _node_size * id);
           float norm = *data;
           data++;
+#ifdef SORT_BY_EXACT_THETA
+          float inner_product_value = dist_fast->DistanceInnerProduct<T>::inner_product(query, data, (unsigned)_aligned_dim);
+          float dist = acos(inner_product_value / sqrt(query_norm * norm)) * 180.0 / 3.1456265;
+#else
           float dist =
               dist_fast->compare(query, data, norm, (unsigned) _aligned_dim);
+#endif
 #ifdef GET_MISS_TRAVERSE
           total_traverse++;
           if (dist >= retset[L - 1].distance) {

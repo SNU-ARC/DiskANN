@@ -61,11 +61,12 @@ int search_memory_index(int argc, char** argv) {
   _u64        recall_at = std::atoi(argv[ctr++]);
   std::string result_output_prefix(argv[ctr++]);
   //  bool        use_optimized_search = std::atoi(argv[ctr++]);
-
+#ifdef SORT_BY_EXACT_THETA
+  ctr += 3;
+#endif
 #ifdef THETA_GUIDED_SEARCH
   // [SJ]: Adding approximation scheme
   std::string approx_scheme(argv[ctr++]);
-  std::cout << approx_scheme << std::endl;
   if ((approx_scheme != std::string("baseline")) &&
       (approx_scheme != std::string("test")) &&
       (approx_scheme != std::string("sort_by_exact_theta")) &&
@@ -120,6 +121,10 @@ int search_memory_index(int argc, char** argv) {
   if (metric == diskann::FAST_L2)
     index.optimize_graph();
 
+#ifdef GET_MISS_TRAVERSE
+  index.total_traverse = 0;
+  index.total_traverse_miss = 0;
+#endif
 #ifdef THETA_GUIDED_SEARCH
   index._approx_rate = approx_rate;
   index._hash_bitwidth = hash_bitwidth;
@@ -196,6 +201,11 @@ int search_memory_index(int argc, char** argv) {
               << (float) latency_stats[(_u64)(0.999 * query_num)]
               << std::setw(12) << recall << std::endl;
   }
+#ifdef GET_MISS_TRAVERSE
+  std::cout << "[Total_summary] # of traversed: " << index.total_traverse << ", ";
+  std::cout << "# of invalid: " << index.total_traverse_miss << ", ";
+  std::cout << "ratio: " << (float)index.total_traverse_miss / index.total_traverse  * 100 << std::endl;
+#endif
 
   std::cout << "Done searching. Now saving results " << std::endl;
   _u64 test_id = 0;
@@ -206,7 +216,6 @@ int search_memory_index(int argc, char** argv) {
                             query_num, recall_at);
     test_id++;
   }
-
 #ifdef THETA_GUIDED_SEARCH
   delete[] index._hash_function;
 #endif
