@@ -99,8 +99,9 @@ else()
 endif()
 
 #add_definitions(-DGET_MISS_TRAVERSE)
-add_definitions(-DGET_MISS_TRAVERSE -DSORT_BY_EXACT_THETA)
-#add_definitions(-DGET_MISS_TRAVERSE -DTHETA_GUIDED_SEARCH)
+#add_definitions(-DGET_MISS_TRAVERSE -DSORT_BY_EXACT_THETA)
+add_definitions(-DGET_MISS_TRAVERSE -DTHETA_GUIDED_SEARCH)
+add_definitions(-DPROFILE)
 
 add_subdirectory(src)
 add_subdirectory(tests)

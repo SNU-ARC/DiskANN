@@ -206,6 +206,13 @@ int search_memory_index(int argc, char** argv) {
   std::cout << "# of invalid: " << index.total_traverse_miss << ", ";
   std::cout << "ratio: " << (float)index.total_traverse_miss / index.total_traverse  * 100 << std::endl;
 #endif
+#ifdef PROFILE
+  std::cout << "hash_xor time: " << index.profile_time[0].count() << std::endl;
+  std::cout << "hash_popcnt time: " << index.profile_time[2].count() << std::endl;
+  std::cout << "hash_sort time: " << index.profile_time[4].count() << std::endl;
+  std::cout << "dist time: " << index.profile_time[1].count() << std::endl;
+  std::cout << "query_hash time: " << index.profile_time[3].count() << std::endl;
+#endif
 
   std::cout << "Done searching. Now saving results " << std::endl;
   _u64 test_id = 0;

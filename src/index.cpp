@@ -1134,6 +1134,15 @@ namespace diskann {
     // std::mt19937 rng(rand());
     // GenRandom(rng, init_ids.data(), L, (unsigned) nd_);
 
+#ifdef PROFILE
+    // SJ: Profile_timer
+    profile_time.push_back(std::chrono::high_resolution_clock::now() - std::chrono::high_resolution_clock::now()); // 0: hash_xor time
+    profile_time.push_back(std::chrono::high_resolution_clock::now() - std::chrono::high_resolution_clock::now()); // 1: distance time
+    profile_time.push_back(std::chrono::high_resolution_clock::now() - std::chrono::high_resolution_clock::now()); // 2: hash_popcnt time
+    profile_time.push_back(std::chrono::high_resolution_clock::now() - std::chrono::high_resolution_clock::now()); // 3: query_hash time
+    profile_time.push_back(std::chrono::high_resolution_clock::now() - std::chrono::high_resolution_clock::now()); // 4: hash_sort time
+#endif
+
     boost::dynamic_bitset<> flags{_nd, 0};
     unsigned                tmp_l = 0;
     unsigned *              neighbors =
@@ -1141,6 +1150,9 @@ namespace diskann {
     unsigned MaxM_ep = *neighbors;
     neighbors++;
 
+#ifdef PROFILE
+  auto query_hash_start = std::chrono::high_resolution_clock::now();
+#endif
 #ifdef SORT_BY_EXACT_THETA
     float query_norm = dist_fast->norm(query, (unsigned) _aligned_dim);
 #endif
@@ -1156,6 +1168,10 @@ namespace diskann {
         hashed_query[num_integer] = hashed_query[num_integer] | (dist_hash->DistanceInnerProduct<float>::inner_product((float*)query, &_hash_function[_aligned_dim * (32 * num_integer + bit_count)], _aligned_dim) > 0 ? 0x80000000 : 0);
       }
     }
+#endif
+#ifdef PROFILE
+  auto query_hash_end = std::chrono::high_resolution_clock::now();
+  profile_time[3] += (query_hash_end - query_hash_start);
 #endif
 
     for (; tmp_l < L && tmp_l < MaxM_ep; tmp_l++) {
@@ -1228,6 +1244,9 @@ namespace diskann {
           unsigned id = neighbors[m];
           if (flags[id]) continue;
 
+#ifdef PROFILE
+          auto hash_xor_start = std::chrono::high_resolution_clock::now();
+#endif
           unsigned long long hamming_result[hash_size >> 1];
           unsigned hamming_distance = 0;
           unsigned* hash_value_address = (unsigned*)(_opt_graph + _node_size * id + _data_len + _neighbor_len);
@@ -1249,6 +1268,11 @@ namespace diskann {
               hamming_distance += __builtin_popcountll(hamming_result[j]);
           }
 #endif
+#ifdef PROFILE
+          auto hash_xor_end = std::chrono::high_resolution_clock::now();
+          profile_time[0] += (hash_xor_end - hash_xor_start);
+          auto hash_popcnt_start = std::chrono::high_resolution_clock::now();
+#endif
 #else
           for (unsigned num_integer = 0; num_integer < _hash_bitwidth / (8 * sizeof(unsigned)); num_integer++;) {
             hamming_result[num_integer] = hashed_query[num_integer] ^ hash_value_address[num_integer];
@@ -1258,12 +1282,28 @@ namespace diskann {
           unsigned long long cat_hamming_id = (((unsigned long long)hamming_distance << 32) | id);
           theta_queue[theta_queue_size] = cat_hamming_id;
           theta_queue_size++;
+#ifdef PROFILE
+          auto hash_popcnt_end = std::chrono::high_resolution_clock::now();
+          profile_time[2] += (hash_popcnt_end - hash_popcnt_start);
+#endif
         }
+#ifdef PROFILE
+        auto hash_sort_start = std::chrono::high_resolution_clock::now();
+#endif
         if (theta_queue.size() > 0)
           sort(theta_queue.begin(), theta_queue.end());
+#ifdef PROFILE
+        auto hash_sort_end = std::chrono::high_resolution_clock::now();
+        profile_time[4] += (hash_sort_end - hash_sort_start);
+#endif
+#endif
+#ifdef PROFILE
+        auto dist_start = std::chrono::high_resolution_clock::now();
 #endif
 #ifdef THETA_GUIDED_SEARCH
-        for (unsigned m = 0; m < (unsigned)ceil(theta_queue_size * _approx_rate); m++) {
+//        std::cout << "theta_queue_size * _approx_rate = " << (unsigned)ceil(theta_queue_size * _approx_rate) << std::endl;
+        for (unsigned m = 0; m < 10 && m < (unsigned)ceil(theta_queue_size * _approx_rate); m++) {
+//        for (unsigned m = 0; m < (unsigned)ceil(theta_queue_size * _approx_rate); m++) {
           unsigned id = theta_queue[m] & 0xFFFFFFFF;
 #else
         for (unsigned m = 0; m < MaxM; ++m) {
@@ -1299,6 +1339,10 @@ namespace diskann {
           if (r < nk)
             nk = r;
         }
+#ifdef PROFILE
+        auto dist_end = std::chrono::high_resolution_clock::now();
+        profile_time[1] += (dist_end - dist_start);
+#endif
       }
       if (nk <= k)
         k = nk;
