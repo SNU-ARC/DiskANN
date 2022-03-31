@@ -133,8 +133,10 @@ int search_memory_index(int argc, char** argv) {
   std::string hash_value_bin = memory_index_file;
   hash_function_bin += ".hash_function_";
   hash_value_bin += ".hash_vector_";
-  hash_function_bin += hash_bitwidth;
-  hash_value_bin += hash_bitwidth;
+  hash_function_bin += std::to_string(hash_bitwidth);
+  hash_value_bin += std::to_string(hash_bitwidth);
+  hash_function_bin += "b";
+  hash_value_bin += "b";
   if (index.LoadHashFunction(hash_function_bin.c_str())) {
     if (!index.LoadHashValue(hash_value_bin.c_str()))
       index.GenerateHashValue(hash_value_bin.c_str());
