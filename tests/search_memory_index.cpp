@@ -78,7 +78,7 @@ int search_memory_index(int argc, char** argv) {
     std::cout << "\t- aid_by_exact_theta: Use exact angular distance to filter less relevant vertices" << std::endl;
     std::cout << "\t- aid_by_approx_theta: Use hamming distance of hash values to filter less relevant vertices" << std::endl;
 
-    return -1;
+//    return -1;
   }
   float approx_rate = std::atof(argv[ctr++]);
   unsigned hash_bitwidth = std::atoi(argv[ctr++]);
@@ -131,8 +131,10 @@ int search_memory_index(int argc, char** argv) {
   // [SJ]: Load hash_function & hash_value
   std::string hash_function_bin = memory_index_file;
   std::string hash_value_bin = memory_index_file;
-  hash_function_bin += ".hash_function";
-  hash_value_bin += ".hash_value";
+  hash_function_bin += ".hash_function_";
+  hash_value_bin += ".hash_vector_";
+  hash_function_bin += hash_bitwidth;
+  hash_value_bin += hash_bitwidth;
   if (index.LoadHashFunction(hash_function_bin.c_str())) {
     if (!index.LoadHashValue(hash_value_bin.c_str()))
       index.GenerateHashValue(hash_value_bin.c_str());
@@ -231,7 +233,7 @@ int search_memory_index(int argc, char** argv) {
 }
 
 int main(int argc, char** argv) {
-#ifdef THETA_GUIDED_SEARCH
+//#ifdef THETA_GUIDED_SEARCH
   if (argc < 14) {
     std::cout
         << "Usage: " << argv[0]
@@ -240,16 +242,16 @@ int main(int argc, char** argv) {
            "[memory_index_path]  [num_threads] "
            "[query_file.bin]  [truthset.bin (use \"null\" for none)] "
            " [K] [result_output_prefix] [approx_scheme] [approx_rate] [hash_bitwidth]"
-#else
-  if (argc < 11) {
-    std::cout
-        << "Usage: " << argv[0]
-        << "  [index_type<float/int8/uint8>]  [dist_fn (l2/mips/fast_l2)] "
-           "[data_file.bin]  "
-           "[memory_index_path]  [num_threads] "
-           "[query_file.bin]  [truthset.bin (use \"null\" for none)] "
-           " [K] [result_output_prefix]"
-#endif
+//#else
+//  if (argc < 11) {
+//    std::cout
+//        << "Usage: " << argv[0]
+//        << "  [index_type<float/int8/uint8>]  [dist_fn (l2/mips/fast_l2)] "
+//           "[data_file.bin]  "
+//           "[memory_index_path]  [num_threads] "
+//           "[query_file.bin]  [truthset.bin (use \"null\" for none)] "
+//           " [K] [result_output_prefix]"
+//#endif
            " [L1]  [L2] etc. See README for more information on parameters. "
         << std::endl;
     exit(-1);
