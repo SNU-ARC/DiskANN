@@ -2065,7 +2065,6 @@ namespace diskann {
       }
 
       std::cout << "LoadHashFunction" << std::endl;
-      std::cout << _hash_len << std::endl;
       _hash_function = (float*)(_opt_graph + _node_size * _nd + _hash_len * _nd);
       file_hash_function.read((char*)_hash_function, _aligned_dim * _hash_bitwidth * sizeof(float));
       file_hash_function.close();
@@ -2081,7 +2080,6 @@ namespace diskann {
     _hash_value = (unsigned*)(_opt_graph + _node_size * _nd);
     if (file_hash_value.is_open()) {
       std::cout << "LoadHashValue" << std::endl;
-      std::cout << _hash_len << std::endl;
       for (unsigned i = 0; i < _nd; i++) {
         for (unsigned j = 0; j < (_hash_bitwidth >> 5); j++) {
           file_hash_value.read((char*)(_hash_value + (_hash_len >> 2) * i + j), 4);
