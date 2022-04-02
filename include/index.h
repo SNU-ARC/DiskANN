@@ -111,6 +111,7 @@ namespace diskann {
     // [SJ]: Adding approximation scheme
     float _approx_rate;
     unsigned _hash_bitwidth;
+    unsigned _hash_function_size;
     float* _hash_function = nullptr;
     unsigned* _hash_value = nullptr;
     unsigned _hash_len;

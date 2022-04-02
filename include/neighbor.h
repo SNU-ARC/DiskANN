@@ -145,4 +145,17 @@ namespace diskann {
     addr[right] = nn;
     return right;
   }
+
+  // SJ: For hamming distance
+  struct HashNeighbor{
+    unsigned id;
+    unsigned distance;
+
+    HashNeighbor() = default;
+    HashNeighbor(unsigned id, unsigned distance = -1) : id{id}, distance{distance}{}
+
+    inline bool operator<(const HashNeighbor &other) const {
+      return distance < other.distance;
+    }
+  };
 }  // namespace diskann

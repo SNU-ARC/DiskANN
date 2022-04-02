@@ -64,7 +64,7 @@ int search_memory_index(int argc, char** argv) {
 #ifdef SORT_BY_EXACT_THETA
   ctr += 3;
 #endif
-#ifdef THETA_GUIDED_SEARCH
+//#ifdef THETA_GUIDED_SEARCH
   // [SJ]: Adding approximation scheme
   std::string approx_scheme(argv[ctr++]);
   if ((approx_scheme != std::string("baseline")) &&
@@ -82,7 +82,7 @@ int search_memory_index(int argc, char** argv) {
   }
   float approx_rate = std::atof(argv[ctr++]);
   unsigned hash_bitwidth = std::atoi(argv[ctr++]);
-#endif
+//#endif
 
   bool calc_recall_flag = false;
 
@@ -118,6 +118,10 @@ int search_memory_index(int argc, char** argv) {
   index.load(memory_index_file.c_str());  // to load NSG
   std::cout << "Index loaded" << std::endl;
 
+#ifdef THETA_GUIDED_SEARCH
+  index._approx_rate = approx_rate;
+  index._hash_bitwidth = hash_bitwidth;
+#endif
   if (metric == diskann::FAST_L2)
     index.optimize_graph();
 
@@ -126,8 +130,6 @@ int search_memory_index(int argc, char** argv) {
   index.total_traverse_miss = 0;
 #endif
 #ifdef THETA_GUIDED_SEARCH
-  index._approx_rate = approx_rate;
-  index._hash_bitwidth = hash_bitwidth;
   // [SJ]: Load hash_function & hash_value
   std::string hash_function_bin = memory_index_file;
   std::string hash_value_bin = memory_index_file;
@@ -227,9 +229,9 @@ int search_memory_index(int argc, char** argv) {
                             query_num, recall_at);
     test_id++;
   }
-#ifdef THETA_GUIDED_SEARCH
-  delete[] index._hash_function;
-#endif
+//#ifdef THETA_GUIDED_SEARCH
+//  delete[] index._hash_function;
+//#endif
   diskann::aligned_free(query);
   return 0;
 }
