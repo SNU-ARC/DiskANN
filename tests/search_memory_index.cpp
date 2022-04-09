@@ -172,6 +172,11 @@ int search_memory_index(int argc, char** argv) {
 #pragma omp parallel for schedule(dynamic, 1)
     for (int64_t i = 0; i < (int64_t) query_num; i++) {
       auto qs = std::chrono::high_resolution_clock::now();
+//#ifdef THETA_GUIDED_SEARCH
+//      for (unsigned a = 0; a < (hash_bitwidth >> 5) * query_aligned_dim; a += 1) {
+//        _mm_prefetch(&index._hash_function[a], _MM_HINT_T0);
+//      }
+//#endif
       if (metric == diskann::FAST_L2) {
         index.search_with_opt_graph(
             query + i * query_aligned_dim, recall_at, L,

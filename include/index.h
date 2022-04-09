@@ -112,10 +112,9 @@ namespace diskann {
     float _approx_rate;
     unsigned _hash_bitwidth;
     unsigned _hash_function_size;
-    float* _hash_function = nullptr;
-    unsigned* _hash_value = nullptr;
+    T* _hash_function;
+    unsigned* _hash_value;
     unsigned _hash_len;
-    Distance<float>* _distance_hash;
     
     DISKANN_DLLEXPORT void GenerateHashFunction(const char* file_name);
     DISKANN_DLLEXPORT void GenerateHashValue(const char* file_name);
