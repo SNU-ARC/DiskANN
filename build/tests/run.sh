@@ -1,10 +1,12 @@
 #!/bin/bash
 export TIME=$(date '+%Y%m%d%H%M')
 MAX_THREADS=`nproc --all`
-THREAD=(1 2 4 8 ${MAX_THREADS})
-K=(1 10)
-#L_SIZE=(23)
-L_SIZE=(10 20 30 40 50 60 70 80 90 100 110 120 130 140 150 160 170 180 190 200)
+#THREAD=(1 ${MAX_THREADS})
+THREAD=(1 2 4 8 16 ${MAX_THREADS})
+#THREAD=(1 2 4 8 10 12 14 16 18 20 22 ${MAX_THREADS})
+K=(10)
+L_SIZE=(30 31 32 33 34 35 36 37 38 39)
+#L_SIZE=(10 17 18 20 23 30 31 36 39 40 50 60 70 71 80 90 91 100 110 120 130 140 150 160 170 180 190 200)
 
 vamana_sift1M() {
   if [ ! -f "sift1M/sift_base.fvecs.bin" ]; then
