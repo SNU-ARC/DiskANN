@@ -122,7 +122,8 @@ namespace diskann {
     DISKANN_DLLEXPORT bool LoadHashValue(const char* file_name);
 #endif
 #ifdef PROFILE
-    std::vector<std::chrono::duration<double> > profile_time;
+    unsigned num_timer = 0;
+    std::vector<double> profile_time;
 #endif
 
     /*  Internals of the library */

@@ -1137,12 +1137,7 @@ namespace diskann {
     // GenRandom(rng, init_ids.data(), L, (unsigned) nd_);
 
 #ifdef PROFILE
-    // SJ: Profile_timer
-    profile_time.push_back(std::chrono::high_resolution_clock::now() - std::chrono::high_resolution_clock::now()); // 0: hash_xor time
-    profile_time.push_back(std::chrono::high_resolution_clock::now() - std::chrono::high_resolution_clock::now()); // 1: distance time
-    profile_time.push_back(std::chrono::high_resolution_clock::now() - std::chrono::high_resolution_clock::now()); // 2: hash_popcnt time
-    profile_time.push_back(std::chrono::high_resolution_clock::now() - std::chrono::high_resolution_clock::now()); // 3: query_hash time
-    profile_time.push_back(std::chrono::high_resolution_clock::now() - std::chrono::high_resolution_clock::now()); // 4: hash_sort time
+    unsigned int tid = omp_get_thread_num();
 #endif
 
     boost::dynamic_bitset<> flags{_nd, 0};
@@ -1174,7 +1169,8 @@ namespace diskann {
     }
 #ifdef PROFILE
   auto query_hash_end = std::chrono::high_resolution_clock::now();
-  profile_time[3] += (query_hash_end - query_hash_start);
+  std::chrono::duration<double> query_hash_diff = query_hash_end - query_hash_start;
+  profile_time[tid * num_timer] += query_hash_diff.count() * 1000000;
 #endif
     __m256i hashed_query_avx[hash_size >> 3];
     for (unsigned int m = 0; m < (hash_size >> 3); m++) {
@@ -1238,6 +1234,9 @@ namespace diskann {
         unsigned MaxM = *neighbors;
         neighbors++;
 #ifdef THETA_GUIDED_SEARCH
+#ifdef PROFILE
+        auto hash_approx_start = std::chrono::high_resolution_clock::now();
+#endif
         for (unsigned m = 0; m < MaxM; ++m) {
           unsigned int id = neighbors[m];
           for (unsigned n = 0; n < hash_size; n++)
@@ -1254,9 +1253,6 @@ namespace diskann {
           unsigned id = neighbors[m];
           unsigned hamming_distance = 0;
           unsigned* hash_value_address = _hash_value + hash_size * id;
-#ifdef PROFILE
-          auto hash_xor_start = std::chrono::high_resolution_clock::now();
-#endif
 #ifdef USE_AVX2
           for (unsigned i = 0; i < (hash_size >> 3); i++) {
             __m256i hash_value_avx, hamming_result_avx;
@@ -1275,11 +1271,6 @@ namespace diskann {
             }
             hash_value_address += 8;
           }
-#endif
-#ifdef PROFILE
-          auto hash_xor_end = std::chrono::high_resolution_clock::now();
-          profile_time[0] += (hash_xor_end - hash_xor_start);
-          auto hash_popcnt_start = std::chrono::high_resolution_clock::now();
 #endif
 #else
           for (unsigned num_integer = 0; num_integer < _hash_bitwidth / (8 * sizeof(unsigned)); num_integer++) {
@@ -1301,17 +1292,11 @@ namespace diskann {
             hamming_distance_max.id = std::distance(theta_queue.begin(), index);
             hamming_distance_max.distance = theta_queue[hamming_distance_max.id].distance;
           }
-#ifdef PROFILE
-          auto hash_popcnt_end = std::chrono::high_resolution_clock::now();
-          profile_time[2] += (hash_popcnt_end - hash_popcnt_start);
-#endif
         }
 #ifdef PROFILE
-        auto hash_sort_start = std::chrono::high_resolution_clock::now();
-#endif
-#ifdef PROFILE
-        auto hash_sort_end = std::chrono::high_resolution_clock::now();
-        profile_time[4] += (hash_sort_end - hash_sort_start);
+        auto hash_approx_end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> hash_approx_diff = hash_approx_end - hash_approx_start;
+        profile_time[tid * num_timer + 1] += hash_approx_diff.count() * 1000000;
 #endif
 #endif
 #ifdef PROFILE
@@ -1360,7 +1345,8 @@ namespace diskann {
         }
 #ifdef PROFILE
         auto dist_end = std::chrono::high_resolution_clock::now();
-        profile_time[1] += (dist_end - dist_start);
+        std::chrono::duration<double> dist_diff = dist_end - dist_start;
+        profile_time[tid * num_timer + 2] += dist_diff.count() * 1000000;
 #endif
       }
       if (nk <= k)
