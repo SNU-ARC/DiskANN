@@ -148,6 +148,10 @@ int search_memory_index(int argc, char** argv) {
     index.GenerateHashValue(hash_value_bin.c_str());
   }
 #endif
+#ifdef PROFILE
+  index.num_timer = 3;
+  index.profile_time.resize(num_threads * index.num_timer, 0.0);
+#endif
 
   diskann::Parameters paras;
   std::string         recall_string = "Recall@" + std::to_string(recall_at);
@@ -218,11 +222,21 @@ int search_memory_index(int argc, char** argv) {
   std::cout << "ratio: " << (float)index.total_traverse_miss / index.total_traverse  * 100 << std::endl;
 #endif
 #ifdef PROFILE
-  std::cout << "hash_xor time: " << index.profile_time[0].count() << std::endl;
-  std::cout << "hash_popcnt time: " << index.profile_time[2].count() << std::endl;
-  std::cout << "hash_sort time: " << index.profile_time[4].count() << std::endl;
-  std::cout << "dist time: " << index.profile_time[1].count() << std::endl;
-  std::cout << "query_hash time: " << index.profile_time[3].count() << std::endl;
+  std::cout << "========Thread Latency Report========" << std::endl;
+  double* timer = (double*)calloc(index.num_timer, sizeof(double));
+  for (unsigned int tid = 0; tid < num_threads; tid++) {
+    timer[0] += index.profile_time[tid * index.num_timer];
+    timer[1] += index.profile_time[tid * index.num_timer + 1];
+    timer[2] += index.profile_time[tid * index.num_timer + 2];
+  }
+#ifdef THETA_GUIDED_SEARCH
+    std::cout << "query_hash time: " << timer[0] / query_num << "ms" << std::endl;
+    std::cout << "hash_approx time: " << timer[1] / query_num << "ms" << std::endl;
+    std::cout << "dist time: " << timer[2] / query_num << "ms" << std::endl;
+#else
+    std::cout << "dist time: " << timer[2] / query_num << "ms" << std::endl;
+#endif
+  std::cout << "=====================================" << std::endl;
 #endif
 
   std::cout << "Done searching. Now saving results " << std::endl;
