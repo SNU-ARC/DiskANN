@@ -1,10 +1,12 @@
 #!/bin/bash
 export TIME=$(date '+%Y%m%d%H%M')
 MAX_THREADS=`nproc --all`
-THREAD=(1 2 4 8 ${MAX_THREADS})
+THREAD=(1) #${MAX_THREADS})
+#THREAD=(1 2 4 8 ${MAX_THREADS})
 K=(1 10)
-#L_SIZE=(23)
-L_SIZE=(10 20 30 40 50 60 70 80 90 100 110 120 130 140 150 160 170 180 190 200)
+#L_SIZE=(31)
+#L_SIZE=(41 42 43 44 45 46 47 48 49)
+L_SIZE=(10 20 30 40 50 60 70 80 90 100 110 120 130 140 150 160 170 180 190 200 250 300 350 400 450 500)
 
 vamana_sift1M() {
   if [ ! -f "sift1M/sift_base.fvecs.bin" ]; then
@@ -49,7 +51,30 @@ vamana_gist1M() {
   echo "Perform searching using Vamana index (gist1M_L${1}K${2}T${4})"
   sudo sh -c "sync && echo 3 > /proc/sys/vm/drop_caches"
   ./search_memory_index float fast_l2 gist1M/gist_base.fvecs.bin gist1M.index ${4} gist1M/gist_query.fvecs.bin \
-    gist1M/gist_groundtruth.ivecs.bin ${2} gist1M_search_L${1}K${2}T${4} ${3} 0.3 1024 ${1} > gist1M_search_L${1}K${2}_${3}_T${4}.log 
+    gist1M/gist_groundtruth.ivecs.bin ${2} gist1M_search_L${1}K${2}T${4} ${3} 0.3 512 ${1} > gist1M_search_L${1}K${2}_${3}_T${4}.log 
+}
+
+vamana_crawl() {
+  if [ ! -f "crawl/crawl_base.fvecs.bin" ]; then
+    echo "fvecs to bin"
+    ./utils/fvecs_to_bin crawl/crawl_base.fvecs crawl/crawl_base.fvecs.bin
+  fi
+  if [ ! -f "crawl/crawl_query.fvecs.bin" ]; then
+    echo "fvecs to bin"
+    ./utils/fvecs_to_bin crawl/crawl_query.fvecs crawl/crawl_query.fvecs.bin
+  fi
+  if [ ! -f "crawl/crawl_groundtruth.ivecs.bin" ]; then
+    echo "ivecs to bin"
+    ./utils/ivecs_to_bin crawl/crawl_groundtruth.ivecs crawl/crawl_groundtruth.ivecs.bin
+  fi
+  if [ ! -f "crawl.index" ]; then
+    echo "Generating Vamana index"
+    ./build_memory_index float l2 crawl/crawl_base.fvecs.bin crawl.index 70 75 1.2 24
+  fi
+  echo "Perform searching using Vamana index (crawl_L${1}K${2}T${4})"
+  sudo sh -c "sync && echo 3 > /proc/sys/vm/drop_caches"
+  ./search_memory_index float fast_l2 crawl/crawl_base.fvecs.bin crawl.index ${4} crawl/crawl_query.fvecs.bin \
+    crawl/crawl_groundtruth.ivecs.bin ${2} crawl_search_L${1}K${2}T${4} ${3} 0.3 1024 ${1} > crawl_search_L${1}K${2}_${3}_T${4}.log 
 }
 
 vamana_deep1M() {
@@ -75,6 +100,29 @@ vamana_deep1M() {
     deep1M/deep1m_groundtruth.ivecs.bin ${2} deep1M_search_L${1}K${2}T${4} ${3} 0.3 512 ${1} > deep1M_search_L${1}K${2}_${3}_T${4}.log 
 }
 
+vamana_deep100M() {
+  if [ ! -f "deep100M/deep100M_base.fvecs.bin" ]; then
+    echo "fvecs to bin"
+    ./utils/fvecs_to_bin deep100M/deep100M_base.fvecs deep100M/deep100M_base.fvecs.bin
+  fi
+  if [ ! -f "deep100M/deep100M_query.fvecs.bin" ]; then
+    echo "fvecs to bin"
+    ./utils/fvecs_to_bin deep100M/deep100M_query.fvecs deep100M/deep100M_query.fvecs.bin
+  fi
+  if [ ! -f "deep100M/deep100M_groundtruth.ivecs.bin" ]; then
+    echo "ivecs to bin"
+    ./utils/ivecs_to_bin deep100M/deep100M_groundtruth.ivecs deep100M/deep100M_groundtruth.ivecs.bin
+  fi
+  if [ ! -f "deep100M.index" ]; then
+    echo "Generating Vamana index"
+    ./build_memory_index float l2 deep100M/deep100M_base.fvecs.bin deep100M.index 70 75 1.2 24
+  fi
+  echo "Perform searching using Vamana index (deep100M_L${1}K${2}T${4})"
+  sudo sh -c "sync && echo 3 > /proc/sys/vm/drop_caches"
+  ./search_memory_index float fast_l2 deep100M/deep100M_base.fvecs.bin deep100M.index ${4} deep100M/deep100M_query.fvecs.bin \
+    deep100M/deep100M_groundtruth.ivecs.bin ${2} deep100M_search_L${1}K${2}T${4} ${3} 0.3 512 ${1} > deep100M_search_L${1}K${2}_${3}_T${4}.log 
+}
+
 if [ "${1}" == "sift1M" ]; then
   for k in ${K[@]}; do
     for l_size in ${L_SIZE[@]}; do
@@ -93,12 +141,30 @@ elif [ "${1}" == "gist1M" ]; then
       done
     done
   done
+elif [ "${1}" == "crawl" ]; then
+  for k in ${K[@]}; do
+    for l_size in ${L_SIZE[@]}; do
+      declare -i l=l_size
+      for t in ${THREAD[@]}; do
+        vamana_crawl ${l} ${k} ${2} ${t}
+      done
+    done
+  done
 elif [ "${1}" == "deep1M" ]; then
   for k in ${K[@]}; do
     for l_size in ${L_SIZE[@]}; do
       declare -i l=l_size
       for t in ${THREAD[@]}; do
         vamana_deep1M ${l} ${k} ${2} ${t}
+      done
+    done
+  done
+elif [ "${1}" == "deep100M" ]; then
+  for k in ${K[@]}; do
+    for l_size in ${L_SIZE[@]}; do
+      declare -i l=l_size
+      for t in ${THREAD[@]}; do
+        vamana_deep100M ${l} ${k} ${2} ${t}
       done
     done
   done
@@ -109,6 +175,7 @@ elif [ "${1}" == "all" ]; then
       for t in ${THREAD[@]}; do
         vamana_sift1M ${l} ${k} ${2} ${t}
         vamana_gist1M ${l} ${k} ${2} ${t}
+        vamana_crawl ${l} ${k} ${2} ${t}
         vamana_deep1M ${l} ${k} ${2} ${t}
       done
     done
