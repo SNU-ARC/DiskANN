@@ -74,7 +74,7 @@ vamana_gist1M() {
   echo "Perform searching using Vamana index (gist1M_L${1}K${2}T${4})"
   sudo sh -c "sync && echo 3 > /proc/sys/vm/drop_caches"
   ./search_memory_index float fast_l2 gist1M/gist_base.fvecs.bin gist1M.index ${4} gist1M/gist_query.fvecs.bin \
-    gist1M/gist_groundtruth.ivecs.bin ${2} gist1M_search_L${1}K${2}T${4} ${3} 0.3 512 ${1} > gist1M_search_L${1}K${2}_${3}_T${4}.log 
+    gist1M/gist_groundtruth.ivecs.bin ${2} gist1M_search_L${1}K${2}T${4} ${3} 0.3 1024 ${1} > gist1M_search_L${1}K${2}_${3}_T${4}.log 
 }
 
 vamana_crawl() {
@@ -97,7 +97,7 @@ vamana_crawl() {
   echo "Perform searching using Vamana index (crawl_L${1}K${2}T${4})"
   sudo sh -c "sync && echo 3 > /proc/sys/vm/drop_caches"
   ./search_memory_index float fast_l2 crawl/crawl_base.fvecs.bin crawl.index ${4} crawl/crawl_query.fvecs.bin \
-    crawl/crawl_groundtruth.ivecs.bin ${2} crawl_search_L${1}K${2}T${4} ${3} 0.3 1024 ${1} > crawl_search_L${1}K${2}_${3}_T${4}.log 
+    crawl/crawl_groundtruth.ivecs.bin ${2} crawl_search_L${1}K${2}T${4} ${3} 0.3 512 ${1} > crawl_search_L${1}K${2}_${3}_T${4}.log 
 }
 
 vamana_deep1M() {
