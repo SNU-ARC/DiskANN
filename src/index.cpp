@@ -1146,7 +1146,18 @@ namespace diskann {
         (unsigned *) (_opt_graph + _node_size * _ep + _data_len);
     unsigned MaxM_ep = *neighbors;
     neighbors++;
-
+//
+    float query_norm = dist_fast->norm(query, (unsigned) _aligned_dim);
+//    float min_alpha = 10;
+//    float max_alpha = 0;
+//    for (unsigned int iter = 0; iter < _nd; iter++) {
+//      float norm = *(float*)(_opt_graph + _node_size * iter);
+//      float alpha = norm / query_norm;
+//      min_alpha = (min_alpha > alpha) ? alpha : min_alpha;
+//      max_alpha = (alpha > max_alpha) ? alpha : max_alpha;
+//    }
+//    std::cout << "min_alpha: " << min_alpha << ", max_alpha: " << max_alpha << std::endl;
+//
 #ifdef SORT_BY_EXACT_THETA
     float query_norm = dist_fast->norm(query, (unsigned) _aligned_dim);
 #endif
@@ -1305,6 +1316,8 @@ namespace diskann {
         for (unsigned m = 0; m < MaxM; ++m) {
           _mm_prefetch(_opt_graph + _node_size * neighbors[m], _MM_HINT_T0);
         }
+    float min_alpha = 10;
+    float max_alpha = 0;
 #ifdef THETA_GUIDED_SEARCH
         for (unsigned m = 0; m < theta_queue_size_limit; m++) {
           unsigned id = theta_queue[m].id;
@@ -1319,6 +1332,9 @@ namespace diskann {
           T *   data = (T *) (_opt_graph + _node_size * id);
           float norm = *data;
           data++;
+//          float alpha = norm / query_norm;
+//          min_alpha = (min_alpha > alpha) ? alpha : min_alpha;
+//          max_alpha = (alpha > max_alpha) ? alpha : max_alpha;
 #ifdef SORT_BY_EXACT_THETA
           float inner_product_value = dist_fast->DistanceInnerProduct<T>::inner_product(query, data, (unsigned)_aligned_dim);
           float dist = acos(inner_product_value / sqrt(query_norm * norm)) * 180.0 / 3.1456265;
@@ -1326,6 +1342,9 @@ namespace diskann {
           float dist =
               dist_fast->compare(query, data, norm, (unsigned) _aligned_dim);
 #endif
+//          std::cout << "alpha: " << alpha << ", dist: " << dist << std::endl;
+//          float theta = acos((norm - dist) / 2 / sqrt(norm) / sqrt(query_norm));
+//          std::cout << "theta: " << theta << std::endl << std::endl;
 #ifdef GET_MISS_TRAVERSE
           total_traverse++;
           if (dist >= retset[L - 1].distance) {
@@ -1343,6 +1362,7 @@ namespace diskann {
           if (r < nk)
             nk = r;
         }
+//        std::cout << "min_alpha: " << min_alpha << ", max_alpha: " << max_alpha << std::endl;
 #ifdef PROFILE
         auto dist_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> dist_diff = dist_end - dist_start;
@@ -2013,6 +2033,7 @@ namespace diskann {
     DistanceFastL2<T>* dist_fast = (DistanceFastL2<T>*) _distance;
 
     std::cout << "GenerateHashValue" << std::endl;
+#pragma omp parallel for schedule(dynamic, 1)
     for (unsigned i = 0; i < _nd; i++) {
       unsigned* hash_value = (unsigned*)(_opt_graph + _node_size * _nd + _hash_len * i);
       T* vertex = (T*)(_opt_graph + _node_size * i + sizeof(float));

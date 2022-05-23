@@ -1,12 +1,13 @@
 #!/bin/bash
 export TIME=$(date '+%Y%m%d%H%M')
 MAX_THREADS=`nproc --all`
-THREAD=(1) #${MAX_THREADS})
+THREAD=(1)
+#THREAD=(${MAX_THREADS})
 #THREAD=(1 2 4 8 16 ${MAX_THREADS})
 #THREAD=(1 2 4 8 10 12 14 16 18 20 22 ${MAX_THREADS})
 K=(1 10)
-L_SIZE=(100)
-#L_SIZE=(10 20 30 40 50 60 70 80 90 100 110 120 130 140 150 160 170 180 190 200 250 300 350 400 450 500)
+#L_SIZE=(100)
+L_SIZE=(10 20 30 40 50 60 70 80 90 100 110 120 130 140 150 160 170 180 190 200 250 300 350 400 450 500)
 
 vamana_sift1M() {
   if [ ! -f "sift1M/sift_base.fvecs.bin" ]; then
@@ -147,27 +148,31 @@ vamana_deep10M() {
 }
 
 vamana_deep100M() {
-  if [ ! -f "deep100M/deep100M_base.fvecs.bin" ]; then
-    echo "fvecs to bin"
-    ./utils/fvecs_to_bin deep100M/deep100M_base.fvecs deep100M/deep100M_base.fvecs.bin
-  fi
-  if [ ! -f "deep100M/deep100M_query.fvecs.bin" ]; then
-    echo "fvecs to bin"
-    ./utils/fvecs_to_bin deep100M/deep100M_query.fvecs deep100M/deep100M_query.fvecs.bin
-  fi
-  if [ ! -f "deep100M/deep100M_groundtruth.ivecs.bin" ]; then
-    echo "ivecs to bin"
-    ./utils/ivecs_to_bin deep100M/deep100M_groundtruth.ivecs deep100M/deep100M_groundtruth.ivecs.bin
-  fi
-  if [ ! -f "deep100M.index" ]; then
-    echo "Generating Vamana index"
-    ./build_memory_index float l2 deep100M/deep100M_base.fvecs.bin deep100M.index 70 100 1.2 24
-#    ./build_memory_index float l2 deep100M/deep100M_base.fvecs.bin deep100M.index 70 75 1.2 24
-  fi
+  export sub_num=(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15)
+  for id in ${sub_num[@]}; do
+    if [ ! -f "deep100M/deep100M_base_${id}.fvecs.bin" ]; then
+      echo "fvecs to bin"
+      ./utils/fvecs_to_bin deep100M/deep100M_base_${id}.fvecs deep100M/deep100M_base_${id}.fvecs.bin
+    fi
+    if [ ! -f "deep100M/deep100M_query.fvecs.bin" ]; then
+      echo "fvecs to bin"
+      ./utils/fvecs_to_bin deep100M/deep100M_query.fvecs deep100M/deep100M_query.fvecs.bin
+    fi
+    if [ ! -f "deep100M/deep100M_groundtruth.ivecs.bin" ]; then
+      echo "ivecs to bin"
+      ./utils/ivecs_to_bin deep100M/deep100M_groundtruth.ivecs deep100M/deep100M_groundtruth.ivecs.bin
+    fi
+    if [ ! -f "deep100M_${id}.index" ]; then
+      echo "Generating Vamana index"
+#      ./build_memory_index float l2 deep100M/deep100M_base_${id}.fvecs.bin deep100M_${id}.index 100 100 1.2 24
+      ./build_memory_index float l2 deep100M/deep100M_base_${id}.fvecs.bin deep100M_${id}.index 70 75 1.2 24
+    fi
+  done
   echo "Perform searching using Vamana index (deep100M_L${1}K${2}T${4})"
   sudo sh -c "sync && echo 3 > /proc/sys/vm/drop_caches"
-  ./search_memory_index float fast_l2 deep100M/deep100M_base.fvecs.bin deep100M.index ${4} deep100M/deep100M_query.fvecs.bin \
-    deep100M/deep100M_groundtruth.ivecs.bin ${2} deep100M_search_L${1}K${2}T${4} ${3} 0.5 512 ${1} > deep100M_search_L${1}K${2}_${3}_T${4}.log 
+  ./search_memory_index_multi float fast_l2 deep100M/deep100M_base.fvecs.bin deep100M.index ${4} deep100M/deep100M_query.fvecs.bin \
+    deep100M/deep100M_groundtruth.ivecs.bin ${2} deep100M_search_L${1}K${2}T${4} ${3} 0.3 512 ${1} > \
+    deep100M_search_L${1}K${2}_${3}_T${4}.log 
 }
 
 if [ "${1}" == "sift1M" ]; then
@@ -239,9 +244,11 @@ elif [ "${1}" == "all" ]; then
       declare -i l=l_size
       for t in ${THREAD[@]}; do
         vamana_sift1M ${l} ${k} ${2} ${t}
+        vamana_sift10M ${l} ${k} ${2} ${t}
         vamana_gist1M ${l} ${k} ${2} ${t}
         vamana_crawl ${l} ${k} ${2} ${t}
         vamana_deep1M ${l} ${k} ${2} ${t}
+        vamana_deep10M ${l} ${k} ${2} ${t}
       done
     done
   done
