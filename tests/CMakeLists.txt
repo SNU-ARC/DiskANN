@@ -51,3 +51,12 @@ else()
 	target_link_libraries(range_search_disk_index ${PROJECT_NAME} aio -ltcmalloc)
 endif()
 
+add_executable(search_memory_index_multi search_memory_index_multi.cpp )
+if(MSVC)
+	target_link_options(search_memory_index_multi PRIVATE /MACHINE:x64 /DEBUG:FULL)
+	target_link_libraries(search_memory_index_multi debug ${CMAKE_LIBRARY_OUTPUT_DIRECTORY_DEBUG}/diskann_dll.lib)
+	target_link_libraries(search_memory_index_multi optimized ${CMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE}/diskann_dll.lib)
+else() 
+	target_link_libraries(search_memory_index_multi ${PROJECT_NAME} aio -ltcmalloc)
+endif()
+
