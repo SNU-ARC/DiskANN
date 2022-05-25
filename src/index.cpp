@@ -1290,7 +1290,7 @@ namespace diskann {
           }
 #endif
           HashNeighbor cat_hamming_id(id, hamming_distance);
-          if (theta_queue_size < theta_queue_size_limit) {
+          if ((theta_queue_size < theta_queue_size_limit) || (hamming_distance == hamming_distance_max.distance)) {
             theta_queue[theta_queue_size] = cat_hamming_id;
             theta_queue_size++;
             index = std::max_element(theta_queue.begin(), theta_queue.begin() + theta_queue_size_limit);
@@ -1299,6 +1299,7 @@ namespace diskann {
           }
           else if (hamming_distance < hamming_distance_max.distance) {
             theta_queue[hamming_distance_max.id] = cat_hamming_id;
+            theta_queue_size = theta_queue_size_limit;
             index = std::max_element(theta_queue.begin(), theta_queue.begin() + theta_queue_size_limit);
             hamming_distance_max.id = std::distance(theta_queue.begin(), index);
             hamming_distance_max.distance = theta_queue[hamming_distance_max.id].distance;
@@ -1319,7 +1320,7 @@ namespace diskann {
     float min_alpha = 10;
     float max_alpha = 0;
 #ifdef THETA_GUIDED_SEARCH
-        for (unsigned m = 0; m < theta_queue_size_limit; m++) {
+        for (unsigned m = 0; m < theta_queue_size; m++) {
           unsigned id = theta_queue[m].id;
           theta_queue[m].distance = -1;
 #else
