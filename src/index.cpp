@@ -1139,6 +1139,7 @@ namespace diskann {
 #ifdef PROFILE
     unsigned int tid = omp_get_thread_num();
 #endif
+    unsigned int hops = 0;
 
     boost::dynamic_bitset<> flags{_nd, 0};
     unsigned                tmp_l = 0;
@@ -1222,9 +1223,11 @@ namespace diskann {
     std::sort(retset.begin(), retset.begin() + L);
     int k = 0;
     while (k < (int) L) {
+      std::cout << "k: " << k << std::endl;
       int nk = L;
 
       if (retset[k].flag) {
+        hops++;
         retset[k].flag = false;
         unsigned n = retset[k].id;
 
@@ -1278,8 +1281,17 @@ namespace diskann {
             hamming_distance += __builtin_popcount(hamming_result[num_integer]);
           }
 #endif
+//          T *   data = (T *) (_opt_graph + _node_size * id);
+//          float norm = *data;
+//          data++;
+//          float query_norm = dist_fast->norm(query, (unsigned) _aligned_dim);
+//          float inner_product_value = dist_fast->DistanceInnerProduct<T>::inner_product(query, data, (unsigned)_aligned_dim);
+//          float dist = acos(inner_product_value / sqrt(query_norm * norm)) * 3.1456265; //* 180.0 / 3.1456265;
+//          hamming_distance = (uint)ceil(dist);
+//          std::cout << "exact theta: " << (float)dist << std::endl;
+//          std::cout << "approx theta: " << (float)hamming_distance / _hash_bitwidth * 180.0 << std::endl << std::endl;
           HashNeighbor cat_hamming_id(id, hamming_distance);
-          if (theta_queue_size < theta_queue_size_limit) {
+          if ((theta_queue_size < theta_queue_size_limit) || (hamming_distance == hamming_distance_max.distance)) {
             theta_queue[theta_queue_size] = cat_hamming_id;
             theta_queue_size++;
             index = std::max_element(theta_queue.begin(), theta_queue.begin() + theta_queue_size_limit);
@@ -1288,7 +1300,8 @@ namespace diskann {
           }
           else if (hamming_distance < hamming_distance_max.distance) {
             theta_queue[hamming_distance_max.id] = cat_hamming_id;
-            index = std::max_element(theta_queue.begin(), theta_queue.begin() + theta_queue_size_limit);
+            theta_queue_size = theta_queue_size_limit;
+            index = std::max_element(theta_queue.begin(), theta_queue.begin() + theta_queue_size);
             hamming_distance_max.id = std::distance(theta_queue.begin(), index);
             hamming_distance_max.distance = theta_queue[hamming_distance_max.id].distance;
           }
@@ -1306,7 +1319,7 @@ namespace diskann {
           _mm_prefetch(_opt_graph + _node_size * neighbors[m], _MM_HINT_T0);
         }
 #ifdef THETA_GUIDED_SEARCH
-        for (unsigned m = 0; m < theta_queue_size_limit; m++) {
+        for (unsigned m = 0; m < theta_queue_size; m++) {
           unsigned id = theta_queue[m].id;
           theta_queue[m].distance = -1;
 #else
@@ -1357,6 +1370,7 @@ namespace diskann {
     for (size_t i = 0; i < K; i++) {
       indices[i] = retset[i].id;
     }
+    std::cout << "hops: " << hops << std::endl << std::endl;
   }
 
   /*************************************************
