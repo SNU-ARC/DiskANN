@@ -127,8 +127,7 @@ int search_memory_index(int argc, char** argv) {
   std::vector<std::vector<uint32_t>> query_result_ids(Lvec.size());
   std::vector<std::vector<float>>    query_result_dists(Lvec.size());
   float total_recall = 0.0;
-  float min_qps = 1000000.0;
-  float max_latency = 0.0;
+  std::vector<double> global_search_time(16, 0.0);
 
 //  omp_set_num_threads(num_threads);
 //#pragma omp parallel for schedule(dynamic, 1)
@@ -203,7 +202,7 @@ int search_memory_index(int argc, char** argv) {
       std::chrono::duration<double> diff = e - s;
 
       float qps = (query_num / diff.count());
-      min_qps = min_qps > qps ? qps: min_qps;
+      global_search_time[sub_num] = diff.count();
 
       for (uint64_t q = 0; q < query_num; q++) {
         unsigned add_id = 6250000 * sub_num;
@@ -227,18 +226,24 @@ int search_memory_index(int argc, char** argv) {
           mean_latency += latency_stats[q];
         }
         mean_latency /= query_num;
-        max_latency = max_latency < mean_latency ? mean_latency : max_latency;
 
         std::cout << std::setw(4) << L << std::setw(12) << qps << std::setw(18)
           << (float) mean_latency << std::setw(15)
           << (float) latency_stats[(_u64)(0.999 * query_num)]
           << std::setw(12) << recall << std::endl;
-        std::cout << "total_recall: " << total_recall << std::endl;
-        std::cout << "max_latency: " << max_latency << std::endl;
-        std::cout << "min_qps: " << min_qps << std::endl;
       }
     }
   }
+  std::sort(global_search_time.begin(), global_search_time.end());
+  std::cout << "Search Time (16-thread): " << global_search_time[15] << std::endl;
+  std::cout << "QPS (16-thread): " << query_num / global_search_time[15] << std::endl;
+  
+  for (unsigned int iter = 0; iter < 15; iter++) {
+    global_search_time[15] += global_search_time[iter];
+  }
+  std::cout << std::endl << "Search Time (1-thread): " << global_search_time[15] << std::endl;
+  std::cout << "QPS (1-thread): " << query_num / global_search_time[15] << std::endl;
+  std::cout << std::endl << "total_recall: " << total_recall << std::endl;
   //
 #ifdef GET_MISS_TRAVERSE
   std::cout << "[Total_summary] # of traversed: " << index.total_traverse << ", ";

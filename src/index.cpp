@@ -1234,7 +1234,6 @@ namespace diskann {
     std::sort(retset.begin(), retset.begin() + L);
     int k = 0;
     while (k < (int) L) {
-      std::cout << "k: " << k << std::endl;
       int nk = L;
 
       if (retset[k].flag) {
@@ -1302,7 +1301,7 @@ namespace diskann {
 //          std::cout << "exact theta: " << (float)dist << std::endl;
 //          std::cout << "approx theta: " << (float)hamming_distance / _hash_bitwidth * 180.0 << std::endl << std::endl;
           HashNeighbor cat_hamming_id(id, hamming_distance);
-          if ((theta_queue_size < theta_queue_size_limit) || (hamming_distance == hamming_distance_max.distance)) {
+          if ((theta_queue_size < theta_queue_size_limit) ) {
             theta_queue[theta_queue_size] = cat_hamming_id;
             theta_queue_size++;
             index = std::max_element(theta_queue.begin(), theta_queue.begin() + theta_queue_size_limit);
@@ -1311,7 +1310,6 @@ namespace diskann {
           }
           else if (hamming_distance < hamming_distance_max.distance) {
             theta_queue[hamming_distance_max.id] = cat_hamming_id;
-            theta_queue_size = theta_queue_size_limit;
             index = std::max_element(theta_queue.begin(), theta_queue.begin() + theta_queue_size);
             hamming_distance_max.id = std::distance(theta_queue.begin(), index);
             hamming_distance_max.distance = theta_queue[hamming_distance_max.id].distance;
@@ -1390,7 +1388,6 @@ namespace diskann {
     for (size_t i = 0; i < K; i++) {
       indices[i] = retset[i].id;
     }
-    std::cout << "hops: " << hops << std::endl << std::endl;
   }
 
   /*************************************************
@@ -2017,6 +2014,7 @@ namespace diskann {
     float hash_function_norm[_hash_bitwidth - 1];
 
     std::cout << "GenerateHashFunction" << std::endl;
+    auto s = std::chrono::high_resolution_clock::now();
     for (unsigned dim = 0; dim < _aligned_dim; dim++) {
       _hash_function[dim] = norm_dist(gen);
     }
@@ -2035,6 +2033,9 @@ namespace diskann {
         }
       }
     }
+    auto e = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> diff = e - s;
+    std::cout << "HashFunction generation time: " << diff.count() * 1000 << std::endl;;
 
     std::ofstream file_hash_function(file_name, std::ios::binary | std::ios::out);
     file_hash_function.write((char*)&_hash_bitwidth, sizeof(unsigned));
@@ -2047,20 +2048,33 @@ namespace diskann {
     DistanceFastL2<T>* dist_fast = (DistanceFastL2<T>*) _distance;
 
     std::cout << "GenerateHashValue" << std::endl;
+    auto s = std::chrono::high_resolution_clock::now();
 #pragma omp parallel for schedule(dynamic, 1)
     for (unsigned i = 0; i < _nd; i++) {
       unsigned* hash_value = (unsigned*)(_opt_graph + _node_size * _nd + _hash_len * i);
       T* vertex = (T*)(_opt_graph + _node_size * i + sizeof(float));
 
-      for (unsigned j = 0; j < _hash_bitwidth / (8 * sizeof(unsigned)); j++) {
-        unsigned hash_value_temp = 0;
-        for (unsigned bit_count = 0; bit_count < (8 * sizeof(unsigned)); bit_count++) {
-          hash_value_temp = hash_value_temp >> 1;
-          hash_value_temp = hash_value_temp | (dist_fast->DistanceInnerProduct<T>::inner_product(vertex, &_hash_function[_aligned_dim * ((8 * sizeof(unsigned)) * j + bit_count)], _aligned_dim) > 0 ? 0x80000000 : 0);
+      for (unsigned num_integer = 0; num_integer < _hash_bitwidth >> 5; num_integer++) {
+        std::bitset<32> temp_bool;
+        for (unsigned bit_count = 0; bit_count < 32; bit_count++) {
+          temp_bool.set(bit_count, (dist_fast->DistanceInnerProduct<T>::inner_product(vertex, &_hash_function[_aligned_dim * (32 * num_integer + bit_count)], (unsigned)_aligned_dim)) > 0);
+          }
+        for (unsigned bit_count = 0; bit_count < 32; bit_count++) {
+          hash_value[num_integer] = (unsigned)(temp_bool.to_ulong());
         }
-        hash_value[j] = hash_value_temp;
       }
+//      for (unsigned j = 0; j < _hash_bitwidth / (8 * sizeof(unsigned)); j++) {
+//        unsigned hash_value_temp = 0;
+//        for (unsigned bit_count = 0; bit_count < (8 * sizeof(unsigned)); bit_count++) {
+//          hash_value_temp = hash_value_temp >> 1;
+//          hash_value_temp = hash_value_temp | (dist_fast->DistanceInnerProduct<T>::inner_product(vertex, &_hash_function[_aligned_dim * ((8 * sizeof(unsigned)) * j + bit_count)], _aligned_dim) > 0 ? 0x80000000 : 0);
+//        }
+//        hash_value[j] = hash_value_temp;
+//      }
     }
+    auto e = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> diff = e - s;
+    std::cout << "HashValue generation time: " << diff.count() * 1000 << std::endl;;
 
     std::ofstream file_hash_value(file_name, std::ios::binary | std::ios::out);
     _hash_value = (unsigned*)(_opt_graph + _node_size * _nd);
