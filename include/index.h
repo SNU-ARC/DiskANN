@@ -114,12 +114,14 @@ namespace diskann {
     unsigned _hash_function_size;
     T* _hash_function;
     unsigned* _hash_value;
-    unsigned _hash_len;
+    uint64_t _hash_len;
     
     DISKANN_DLLEXPORT void GenerateHashFunction(const char* file_name);
     DISKANN_DLLEXPORT void GenerateHashValue(const char* file_name);
     DISKANN_DLLEXPORT bool LoadHashFunction(const char* file_name);
     DISKANN_DLLEXPORT bool LoadHashValue(const char* file_name);
+    DISKANN_DLLEXPORT void GenerateQueryHash(const T* query, unsigned* hashed_query, float* query_abs, unsigned hash_size);
+    DISKANN_DLLEXPORT unsigned FilterNeighbors(const __m256i* hashed_query_avx, std::vector<HashNeighbor>& theta_queue, const unsigned* neighbors, const unsigned MaxM, const unsigned hash_size, const T* query); 
 #endif
 #ifdef PROFILE
     unsigned num_timer = 0;

@@ -1148,7 +1148,7 @@ namespace diskann {
     unsigned MaxM_ep = *neighbors;
     neighbors++;
 //
-    float query_norm = dist_fast->norm(query, (unsigned) _aligned_dim);
+//    float query_norm = dist_fast->norm(query, (unsigned) _aligned_dim);
 //    float min_alpha = 10;
 //    float max_alpha = 0;
 //    for (unsigned int iter = 0; iter < _nd; iter++) {
@@ -1169,16 +1169,8 @@ namespace diskann {
     std::vector<HashNeighbor> theta_queue(256);
     unsigned hash_size = _hash_bitwidth >> 5;
     unsigned* hashed_query = new unsigned[hash_size];
-    _mm_prefetch(_hash_function, _MM_HINT_T0);
-    for (unsigned num_integer = 0; num_integer < hash_size; num_integer++) {
-      std::bitset<32> temp_bool;
-      for (unsigned bit_count = 0; bit_count < 32; bit_count++) {
-        temp_bool.set(bit_count, (dist_fast->DistanceInnerProduct<T>::inner_product(query, &_hash_function[_aligned_dim * (32 * num_integer + bit_count)], (unsigned)_aligned_dim)) > 0);
-      }
-      for (unsigned bit_count = 0; bit_count < 32; bit_count++) {
-        hashed_query[num_integer] = (unsigned)(temp_bool.to_ulong());
-      }
-    }
+    float query_abs = 0;
+    GenerateQueryHash (query, hashed_query, &query_abs, hash_size);
 #ifdef PROFILE
   auto query_hash_end = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> query_hash_diff = query_hash_end - query_hash_start;
@@ -1250,71 +1242,7 @@ namespace diskann {
 #ifdef PROFILE
         auto hash_approx_start = std::chrono::high_resolution_clock::now();
 #endif
-        for (unsigned m = 0; m < MaxM; ++m) {
-          unsigned int id = neighbors[m];
-          for (unsigned n = 0; n < hash_size; n++)
-            _mm_prefetch(_hash_value + hash_size * id + n, _MM_HINT_T0);
-        }
-        
-        unsigned long long hamming_result[4];
-        unsigned theta_queue_size = 0;
-        unsigned theta_queue_size_limit = (unsigned)ceil(MaxM * _approx_rate);
-        HashNeighbor hamming_distance_max(0, 0);
-        std::vector<HashNeighbor>::iterator index;
-
-        for (unsigned m = 0; m < MaxM; m++) {
-          unsigned id = neighbors[m];
-          unsigned hamming_distance = 0;
-          unsigned* hash_value_address = _hash_value + hash_size * id;
-#ifdef USE_AVX2
-          for (unsigned i = 0; i < (hash_size >> 3); i++) {
-            __m256i hash_value_avx, hamming_result_avx;
-            hash_value_avx = _mm256_loadu_si256((__m256i*)(hash_value_address));
-            hamming_result_avx = _mm256_xor_si256(hashed_query_avx[i], hash_value_avx);
-#ifdef __AVX512VPOPCNTDQ__
-            hamming_result_avx = _mm256_popcnt_epi64(hamming_result_avx);
-            _mm256_storeu_si256((__m256i*)&hamming_result, hamming_result_avx);
-            for (unsigned j = 0; j < 4; j++)
-              hamming_distance += hamming_result[j];
-          }
-#else
-            _mm256_storeu_si256((__m256i*)&hamming_result, hamming_result_avx);
-            for (unsigned j = 0; j < 4; j++) {
-              hamming_distance += _mm_popcnt_u64(hamming_result[j]);
-            }
-            hash_value_address += 8;
-          }
-#endif
-#else
-          for (unsigned num_integer = 0; num_integer < _hash_bitwidth / (8 * sizeof(unsigned)); num_integer++) {
-            hamming_result[num_integer] = hashed_query[num_integer] ^ hash_value_address[num_integer];
-            hamming_distance += __builtin_popcount(hamming_result[num_integer]);
-          }
-#endif
-//          T *   data = (T *) (_opt_graph + _node_size * id);
-//          float norm = *data;
-//          data++;
-//          float query_norm = dist_fast->norm(query, (unsigned) _aligned_dim);
-//          float inner_product_value = dist_fast->DistanceInnerProduct<T>::inner_product(query, data, (unsigned)_aligned_dim);
-//          float dist = acos(inner_product_value / sqrt(query_norm * norm)) * 3.1456265; //* 180.0 / 3.1456265;
-//          hamming_distance = (uint)ceil(dist);
-//          std::cout << "exact theta: " << (float)dist << std::endl;
-//          std::cout << "approx theta: " << (float)hamming_distance / _hash_bitwidth * 180.0 << std::endl << std::endl;
-          HashNeighbor cat_hamming_id(id, hamming_distance);
-          if ((theta_queue_size < theta_queue_size_limit) ) {
-            theta_queue[theta_queue_size] = cat_hamming_id;
-            theta_queue_size++;
-            index = std::max_element(theta_queue.begin(), theta_queue.begin() + theta_queue_size_limit);
-            hamming_distance_max.id = std::distance(theta_queue.begin(), index);
-            hamming_distance_max.distance = theta_queue[hamming_distance_max.id].distance;
-          }
-          else if (hamming_distance < hamming_distance_max.distance) {
-            theta_queue[hamming_distance_max.id] = cat_hamming_id;
-            index = std::max_element(theta_queue.begin(), theta_queue.begin() + theta_queue_size);
-            hamming_distance_max.id = std::distance(theta_queue.begin(), index);
-            hamming_distance_max.distance = theta_queue[hamming_distance_max.id].distance;
-          }
-        }
+        unsigned theta_queue_size = FilterNeighbors(hashed_query_avx, theta_queue, neighbors, MaxM, hash_size, query);
 #ifdef PROFILE
         auto hash_approx_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> hash_approx_diff = hash_approx_end - hash_approx_start;
@@ -1327,14 +1255,16 @@ namespace diskann {
         for (unsigned m = 0; m < MaxM; ++m) {
           _mm_prefetch(_opt_graph + _node_size * neighbors[m], _MM_HINT_T0);
         }
-    float min_alpha = 10;
-    float max_alpha = 0;
 #ifdef THETA_GUIDED_SEARCH
+//        std::cout << "MaxM: " << MaxM << ", theta_queue_size: " << theta_queue_size << std::endl;
         for (unsigned m = 0; m < theta_queue_size; m++) {
           unsigned id = theta_queue[m].id;
-          theta_queue[m].distance = -1;
+//          unsigned hamming_dist = theta_queue[m].distance;
+//          theta_queue[m].distance = -1;
 #else
+//        std::cout << "MaxM: " << MaxM << std::endl;
         for (unsigned m = 0; m < MaxM; ++m) {
+//          unsigned hamming_dist = theta_queue[m].distance;
           unsigned id = neighbors[m];
 #endif
           if (flags[id])
@@ -1354,8 +1284,8 @@ namespace diskann {
               dist_fast->compare(query, data, norm, (unsigned) _aligned_dim);
 #endif
 //          std::cout << "alpha: " << alpha << ", dist: " << dist << std::endl;
-//          float theta = acos((norm - dist) / 2 / sqrt(norm) / sqrt(query_norm));
-//          std::cout << "theta: " << theta << std::endl << std::endl;
+//          float theta = acos((norm - dist) / 2 / sqrt(norm) / query_abs);
+//          std::cout << "approx_theta: " << (float)hamming_dist / _hash_bitwidth * M_PI << ", theta: " << theta << std::endl;
 #ifdef GET_MISS_TRAVERSE
           total_traverse++;
           if (dist >= retset[L - 1].distance) {
@@ -1373,6 +1303,7 @@ namespace diskann {
           if (r < nk)
             nk = r;
         }
+//        std::cout << std::endl;
 //        std::cout << "min_alpha: " << min_alpha << ", max_alpha: " << max_alpha << std::endl;
 #ifdef PROFILE
         auto dist_end = std::chrono::high_resolution_clock::now();
@@ -2062,15 +1993,9 @@ namespace diskann {
         for (unsigned bit_count = 0; bit_count < 32; bit_count++) {
           hash_value[num_integer] = (unsigned)(temp_bool.to_ulong());
         }
+//        std::cout << hash_value[num_integer] << ", ";
       }
-//      for (unsigned j = 0; j < _hash_bitwidth / (8 * sizeof(unsigned)); j++) {
-//        unsigned hash_value_temp = 0;
-//        for (unsigned bit_count = 0; bit_count < (8 * sizeof(unsigned)); bit_count++) {
-//          hash_value_temp = hash_value_temp >> 1;
-//          hash_value_temp = hash_value_temp | (dist_fast->DistanceInnerProduct<T>::inner_product(vertex, &_hash_function[_aligned_dim * ((8 * sizeof(unsigned)) * j + bit_count)], _aligned_dim) > 0 ? 0x80000000 : 0);
-//        }
-//        hash_value[j] = hash_value_temp;
-//      }
+//      std::cout << std::endl;
     }
     auto e = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> diff = e - s;
@@ -2116,7 +2041,9 @@ namespace diskann {
       for (unsigned i = 0; i < _nd; i++) {
         for (unsigned j = 0; j < (_hash_bitwidth >> 5); j++) {
           file_hash_value.read((char*)(_hash_value + (_hash_len >> 2) * i + j), 4);
+//          std::cout << *(_hash_value + (_hash_len >> 2) * i + j) << ", ";
         }
+//        std::cout << std::endl;
       }
       file_hash_value.close();
       
@@ -2124,6 +2051,100 @@ namespace diskann {
     }
     else
       return false;
+  }
+
+  template<typename T, typename TagT>
+  void Index<T, TagT>::GenerateQueryHash (const T* query, unsigned* hashed_query, float* query_abs, unsigned hash_size) {
+    DistanceFastL2<T> *dist_fast = (DistanceFastL2<T> *) _distance;
+    *query_abs = sqrtf(dist_fast->norm(query, (unsigned)_aligned_dim));
+    for (unsigned num_integer = 0; num_integer < hash_size; num_integer++) {
+      std::bitset<32> temp_bool;
+      for (unsigned bit_count = 0; bit_count < 32; bit_count++) {
+        temp_bool.set(bit_count, (dist_fast->DistanceInnerProduct<T>::inner_product(query, &_hash_function[_aligned_dim * (32 * num_integer + bit_count)], (unsigned)_aligned_dim)) > 0);
+      }
+      for (unsigned bit_count = 0; bit_count < 32; bit_count++) {
+        hashed_query[num_integer] = (unsigned)(temp_bool.to_ulong());
+      }
+    }
+  }
+
+  template<typename T, typename TagT>
+  unsigned Index<T, TagT>::FilterNeighbors(const __m256i* hashed_query_avx, std::vector<HashNeighbor>& theta_queue, const unsigned* neighbors, const unsigned MaxM, const unsigned hash_size, const T* query) {
+    for (unsigned m = 0; m < MaxM; ++m) {
+      unsigned int id = neighbors[m];
+      for (unsigned n = 0; n < hash_size; n++)
+        _mm_prefetch(_hash_value + (uint64_t)hash_size * id + n, _MM_HINT_T0);
+    }
+
+    unsigned long long hamming_result[4];
+    unsigned theta_queue_size = 0;
+    unsigned theta_queue_size_limit = (unsigned)ceil(MaxM * _approx_rate);
+    HashNeighbor hamming_distance_max(0, 0);
+    std::vector<HashNeighbor>::iterator index;
+
+    for (unsigned m = 0; m < MaxM; m++) {
+      unsigned id = neighbors[m];
+      unsigned hamming_distance = 0;
+//// For exact theta
+//      DistanceFastL2<T> *dist_fast = (DistanceFastL2<T> *) _distance;
+//      float query_abs = sqrtf(dist_fast->norm(query, (unsigned)_aligned_dim));
+//      T *   data = (T *) (_opt_graph + _node_size * id);
+//      float norm = *data;
+//      data++;
+//      float dist =
+//        dist_fast->compare(query, data, norm, (unsigned) _aligned_dim);
+//      hamming_distance = (unsigned)(acos((norm - dist) / 2 / sqrt(norm) / query_abs) * _hash_bitwidth / M_PI);
+// For approx theta
+      unsigned* hash_value_address = _hash_value + (uint64_t)hash_size * id;
+#ifdef USE_AVX2
+      for (unsigned i = 0; i < (hash_size >> 3); i++) {
+//        std::cout << hash_value_address[0] << ", " << hash_value_address[1] << ", " << hash_value_address[2] << ", " << hash_value_address[3] << ", ";
+        __m256i hash_value_avx, hamming_result_avx;
+        hash_value_avx = _mm256_loadu_si256((__m256i*)(hash_value_address));
+        hamming_result_avx = _mm256_xor_si256(hashed_query_avx[i], hash_value_avx);
+#ifdef __AVX512VPOPCNTDQ__
+        hamming_result_avx = _mm256_popcnt_epi64(hamming_result_avx);
+        _mm256_storeu_si256((__m256i*)&hamming_result, hamming_result_avx);
+        for (unsigned j = 0; j < 4; j++)
+          hamming_distance += hamming_result[j];
+#else
+        _mm256_storeu_si256((__m256i*)&hamming_result, hamming_result_avx);
+        for (unsigned j = 0; j < 4; j++) {
+          hamming_distance += _mm_popcnt_u64(hamming_result[j]);
+        }
+#endif
+        hash_value_address += 8;
+      }
+//      std::cout << std::endl;
+#else
+      for (unsigned num_integer = 0; num_integer < _hash_bitwidth / (8 * sizeof(unsigned)); num_integer++) {
+        hamming_result[num_integer] = hashed_query[num_integer] ^ hash_value_address[num_integer];
+        hamming_distance += __builtin_popcount(hamming_result[num_integer]);
+      }
+#endif
+//      std::cout << "id: " << id << ", hamming_distance: " << hamming_distance << std::endl;
+      HashNeighbor cat_hamming_id(id, hamming_distance);
+      theta_queue[theta_queue_size] = cat_hamming_id;
+//      theta_queue_size++;
+      if ((theta_queue_size_limit < theta_queue_size) && (hamming_distance < hamming_distance_max.distance)) {
+        theta_queue[theta_queue_size] = theta_queue[hamming_distance_max.id];
+        theta_queue[hamming_distance_max.id] = cat_hamming_id;
+        index = std::max_element(theta_queue.begin(), theta_queue.begin() + theta_queue_size_limit);
+        hamming_distance_max.id = std::distance(theta_queue.begin(), index);
+        hamming_distance_max.distance = theta_queue[hamming_distance_max.id].distance;
+        theta_queue_size++;
+      }
+      else {
+        theta_queue[theta_queue_size] = cat_hamming_id;
+        theta_queue_size++;
+        if (theta_queue_size == theta_queue_size_limit) {
+          index = std::max_element(theta_queue.begin(), theta_queue.begin() + theta_queue_size_limit);
+          hamming_distance_max.id = std::distance(theta_queue.begin(), index);
+          hamming_distance_max.distance = theta_queue[hamming_distance_max.id].distance;
+        }
+      }
+    }
+    return theta_queue_size_limit;
   }
 #endif
 
