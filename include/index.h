@@ -17,6 +17,8 @@
 #include "utils.h"
 #include "windows_customizations.h"
 
+#include <boost/dynamic_bitset.hpp>
+
 #define SLACK_FACTOR 1.3
 
 #define ESTIMATE_RAM_USAGE(size, dim, datasize, degree) \
@@ -100,7 +102,8 @@ namespace diskann {
 
     DISKANN_DLLEXPORT void optimize_graph();
 
-    DISKANN_DLLEXPORT void search_with_opt_graph(const T *query, size_t K,
+//    DISKANN_DLLEXPORT void search_with_opt_graph(const T *query, size_t K,
+    DISKANN_DLLEXPORT void search_with_opt_graph(const T *query, boost::dynamic_bitset<>& flags, size_t K,
                                                  size_t L, unsigned *indices);
 
 #ifdef GET_MISS_TRAVERSE
@@ -127,6 +130,7 @@ namespace diskann {
     unsigned num_timer = 0;
     std::vector<double> profile_time;
 #endif
+    DISKANN_DLLEXPORT size_t print_nd() { return _nd; };
 
     /*  Internals of the library */
    protected:

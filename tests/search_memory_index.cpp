@@ -167,13 +167,15 @@ int search_memory_index(int argc, char** argv) {
 
   std::vector<double> latency_stats(query_num, 0);
 
+  boost::dynamic_bitset<> flags{index.print_nd(), 0};
+
   for (uint32_t test_id = 0; test_id < Lvec.size(); test_id++) {
     _u64 L = Lvec[test_id];
     query_result_ids[test_id].resize(recall_at * query_num);
 
-    auto s = std::chrono::high_resolution_clock::now();
-    omp_set_num_threads(num_threads);
-#pragma omp parallel for schedule(dynamic, 1)
+//    auto s = std::chrono::high_resolution_clock::now();
+//    omp_set_num_threads(num_threads);
+//#pragma omp parallel for schedule(dynamic, 1)
     for (int64_t i = 0; i < (int64_t) query_num; i++) {
       auto qs = std::chrono::high_resolution_clock::now();
 //#ifdef THETA_GUIDED_SEARCH
@@ -183,7 +185,8 @@ int search_memory_index(int argc, char** argv) {
 //#endif
       if (metric == diskann::FAST_L2) {
         index.search_with_opt_graph(
-            query + i * query_aligned_dim, recall_at, L,
+//            query + i * query_aligned_dim, recall_at, L,
+            query + i * query_aligned_dim, flags, recall_at, L,
             query_result_ids[test_id].data() + i * recall_at);
       } else {
         index.search(query + i * query_aligned_dim, recall_at, L,
@@ -192,11 +195,11 @@ int search_memory_index(int argc, char** argv) {
       auto qe = std::chrono::high_resolution_clock::now();
       std::chrono::duration<double> diff = qe - qs;
       latency_stats[i] = diff.count() * 1000000;
+      flags.reset();
     }
-    auto                          e = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> diff = e - s;
+//    auto e = std::chrono::high_resolution_clock::now();
+//    std::chrono::duration<double> diff = e - s;
 
-    float qps = (query_num / diff.count());
 
     float recall = 0;
     if (calc_recall_flag)
@@ -210,6 +213,7 @@ int search_memory_index(int argc, char** argv) {
       mean_latency += latency_stats[q];
     }
     mean_latency /= query_num;
+    float qps = 1000000 / (float) mean_latency;
 
     std::cout << std::setw(4) << L << std::setw(12) << qps << std::setw(18)
               << (float) mean_latency << std::setw(15)
@@ -279,6 +283,10 @@ int main(int argc, char** argv) {
         << std::endl;
     exit(-1);
   }
+//  if (mlockall(MCL_FUTURE)) {
+//    perror("mlockall failed:");
+//    return 0;
+//  }
   if (std::string(argv[1]) == std::string("int8"))
     search_memory_index<int8_t>(argc, argv);
   else if (std::string(argv[1]) == std::string("uint8"))
