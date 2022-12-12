@@ -149,7 +149,7 @@ int search_memory_index(int argc, char** argv) {
   }
 #endif
 #ifdef PROFILE
-  index.num_timer = 3;
+  index.num_timer = 4;
   index.profile_time.resize(num_threads * index.num_timer, 0.0);
 #endif
 
@@ -232,13 +232,16 @@ int search_memory_index(int argc, char** argv) {
     timer[0] += index.profile_time[tid * index.num_timer];
     timer[1] += index.profile_time[tid * index.num_timer + 1];
     timer[2] += index.profile_time[tid * index.num_timer + 2];
+    timer[3] += index.profile_time[tid * index.num_timer + 3];
   }
 #ifdef THETA_GUIDED_SEARCH
-    std::cout << "query_hash time: " << timer[0] / query_num << "ms" << std::endl;
-    std::cout << "hash_approx time: " << timer[1] / query_num << "ms" << std::endl;
-    std::cout << "dist time: " << timer[2] / query_num << "ms" << std::endl;
+    std::cout << "visited_init time: " << timer[0] / query_num << "us" << std::endl;
+    std::cout << "query_hash time: " << timer[1] / query_num << "us" << std::endl;
+    std::cout << "hash_approx time: " << timer[2] / query_num << "us" << std::endl;
+    std::cout << "dist time: " << timer[3] / query_num << "us" << std::endl;
 #else
-    std::cout << "dist time: " << timer[2] / query_num << "ms" << std::endl;
+    std::cout << "visited_init time: " << timer[0] / query_num << "us" << std::endl;
+    std::cout << "dist time: " << timer[3] / query_num << "us" << std::endl;
 #endif
   std::cout << "=====================================" << std::endl;
 #endif

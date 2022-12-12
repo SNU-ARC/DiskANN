@@ -39,9 +39,6 @@
 #include <xmmintrin.h>
 #endif
 
-#define MAP_HUGE_2MB (21 << MAP_HUGE_SHIFT)
-#define MAP_HUGE_1GB (30 << MAP_HUGE_SHIFT)
-
 // only L2 implemented. Need to implement inner product search
 namespace {
   template<typename T>
@@ -50,7 +47,6 @@ namespace {
   template<>
   diskann::Distance<float> *get_distance_function(diskann::Metric m) {
     if (m == diskann::Metric::FAST_L2) {
-      std::cout << "Here" << std::endl;
       return new diskann::DistanceFastL2<float>();
     } else if (m == diskann::Metric::L2) {
       if (Avx2SupportedCPU) {
@@ -1103,14 +1099,14 @@ namespace diskann {
     _neighbor_len = (_width + 1) * sizeof(unsigned);
 #ifdef THETA_GUIDED_SEARCH
     _hash_len = (_hash_bitwidth >> 3);
-    _node_size = _data_len + _neighbor_len + _hash_len;
+    _node_size = _data_len + _neighbor_len;
     _hash_function_size = _aligned_dim * _hash_bitwidth * sizeof(float);
-    _opt_graph = (char *) mmap(NULL, _node_size * _nd + _hash_function_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_POPULATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
-//    _opt_graph = (char *) malloc(_node_size * _nd + _hash_function_size);
+//    _opt_graph = (char *) mmap(NULL, _node_size * _nd + _hash_len * _nd + _hash_function_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_POPULATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
+    _opt_graph = (char *) malloc(_node_size * _nd + _hash_len * _nd + _hash_function_size);
 #else
     _node_size = _data_len + _neighbor_len;
-    _opt_graph = (char *) mmap(NULL, _node_size * _nd, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_POPULATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
-//    _opt_graph = (char *) malloc(_node_size * _nd);
+//    _opt_graph = (char *) mmap(NULL, _node_size * _nd, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_POPULATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
+    _opt_graph = (char *) malloc(_node_size * _nd);
 #endif
     DistanceFastL2<T> *dist_fast = (DistanceFastL2<T> *) _distance;
     for (unsigned i = 0; i < _nd; i++) {
@@ -1132,7 +1128,6 @@ namespace diskann {
   }
 
   template<typename T, typename TagT>
-//  void Index<T, TagT>::search_with_opt_graph(const T *query, size_t K, size_t L,
   void Index<T, TagT>::search_with_opt_graph(const T *query, boost::dynamic_bitset<>& flags, size_t K, size_t L,
                                              unsigned *indices) {
     DistanceFastL2<T> *dist_fast = (DistanceFastL2<T> *) _distance;
@@ -1145,7 +1140,15 @@ namespace diskann {
 #ifdef PROFILE
     unsigned int tid = omp_get_thread_num();
 #endif
+#ifdef PROFILE
+  auto flag_init_start = std::chrono::high_resolution_clock::now();
+#endif
     flags.reset();
+#ifdef PROFILE
+  auto flag_init_end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> flag_init_diff = flag_init_end - flag_init_start;
+  profile_time[tid * num_timer] += flag_init_diff.count() * 1000000;
+#endif
 //    boost::dynamic_bitset<> flags{_nd, 0};
     unsigned                tmp_l = 0;
     unsigned *              neighbors =
@@ -1157,22 +1160,22 @@ namespace diskann {
 #endif
 #ifdef THETA_GUIDED_SEARCH
 #ifdef PROFILE
-    auto query_hash_start = std::chrono::high_resolution_clock::now();
+  auto query_hash_start = std::chrono::high_resolution_clock::now();
 #endif
     std::vector<HashNeighbor> theta_queue(100);
     unsigned hash_size = _hash_bitwidth >> 5;
     unsigned* hashed_query = new unsigned[hash_size];
     float query_abs = 0;
     GenerateQueryHash (query, hashed_query, &query_abs, hash_size);
+#ifdef PROFILE
+  auto query_hash_end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> query_hash_diff = query_hash_end - query_hash_start;
+  profile_time[tid * num_timer + 1] += query_hash_diff.count() * 1000000;
+#endif
     __m256i hashed_query_avx[hash_size >> 3];
     for (unsigned int m = 0; m < (hash_size >> 3); m++) {
       hashed_query_avx[m] = _mm256_loadu_si256((__m256i*)&hashed_query[m << 3]);
     }
-#ifdef PROFILE
-    auto query_hash_end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> query_hash_diff = query_hash_end - query_hash_start;
-    profile_time[tid * num_timer] += query_hash_diff.count() * 1000000;
-#endif
 #endif
 
     for (; tmp_l < L && tmp_l < MaxM_ep; tmp_l++) {
@@ -1235,38 +1238,26 @@ namespace diskann {
         auto hash_approx_start = std::chrono::high_resolution_clock::now();
 #endif
         unsigned theta_queue_size = FilterNeighbors(hashed_query_avx, theta_queue, neighbors, MaxM, hash_size, query);
-//        unsigned filtered_neighbors[100];
-//        unsigned filtered_MaxM = 0;
-//        for (unsigned i = 0; i < MaxM; i++) {
-//          filtered_neighbors[filtered_MaxM] = neighbors[i];
-//          filtered_MaxM += !flags[neighbors[i]];
-//        }
-//        unsigned theta_queue_size = FilterNeighbors(hashed_query_avx, theta_queue, filtered_neighbors, filtered_MaxM, hash_size, query);
 #ifdef PROFILE
         auto hash_approx_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> hash_approx_diff = hash_approx_end - hash_approx_start;
-        profile_time[tid * num_timer + 1] += hash_approx_diff.count() * 1000000;
+        profile_time[tid * num_timer + 2] += hash_approx_diff.count() * 1000000;
 #endif
 #endif
 #ifdef PROFILE
         auto dist_start = std::chrono::high_resolution_clock::now();
 #endif
 #ifdef THETA_GUIDED_SEARCH
-//        std::cout << "MaxM: " << MaxM << ", theta_queue_size: " << theta_queue_size << std::endl;
         for (unsigned m = 0; m < theta_queue_size; ++m) {
           _mm_prefetch(_opt_graph + _node_size * theta_queue[m].id, _MM_HINT_T0);
         }
         for (unsigned m = 0; m < theta_queue_size; m++) {
           unsigned id = theta_queue[m].id;
-//          unsigned hamming_dist = theta_queue[m].distance;
-//          theta_queue[m].distance = -1;
 #else
-//        std::cout << "MaxM: " << MaxM << std::endl;
         for (unsigned m = 0; m < MaxM; ++m) {
           _mm_prefetch(_opt_graph + _node_size * neighbors[m], _MM_HINT_T0);
         }
         for (unsigned m = 0; m < MaxM; ++m) {
-//          unsigned hamming_dist = theta_queue[m].distance;
           unsigned id = neighbors[m];
 #endif
           if (flags[id])
@@ -1310,7 +1301,7 @@ namespace diskann {
 #ifdef PROFILE
         auto dist_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> dist_diff = dist_end - dist_start;
-        profile_time[tid * num_timer + 2] += dist_diff.count() * 1000000;
+        profile_time[tid * num_timer + 3] += dist_diff.count() * 1000000;
 #endif
       }
       if (nk <= k)
@@ -1943,7 +1934,7 @@ namespace diskann {
     DistanceFastL2<T>* dist_fast = (DistanceFastL2<T>*) _distance;
     std::normal_distribution<float> norm_dist (0.0, 1.0);
     std::mt19937 gen(rand());
-    _hash_function = (T*)(_opt_graph + _node_size * _nd);
+    _hash_function = (T*)(_opt_graph + _node_size * _nd + _hash_len * _nd);
     float hash_function_norm[_hash_bitwidth - 1];
 
     std::cout << "GenerateHashFunction" << std::endl;
@@ -1956,7 +1947,6 @@ namespace diskann {
     for (unsigned hash_col = 1; hash_col < _hash_bitwidth; hash_col++) {
       for (unsigned dim = 0; dim < _aligned_dim; dim++)
         _hash_function[hash_col * _aligned_dim + dim] = norm_dist(gen);
-      hash_function_norm[hash_col] = dist_fast->norm(&_hash_function[hash_col * _aligned_dim], _aligned_dim);
 
       // Gram-schmidt process
       for (unsigned compare_col = 0; compare_col < hash_col; compare_col++) {
@@ -1965,6 +1955,7 @@ namespace diskann {
           _hash_function[hash_col * _aligned_dim + dim] -= (inner_product_between_hash / hash_function_norm[compare_col] * _hash_function[compare_col * _aligned_dim + dim]);
         }
       }
+      hash_function_norm[hash_col] = dist_fast->norm(&_hash_function[hash_col * _aligned_dim], _aligned_dim);
     }
     auto e = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> diff = e - s;
@@ -1984,7 +1975,7 @@ namespace diskann {
     auto s = std::chrono::high_resolution_clock::now();
 #pragma omp parallel for schedule(dynamic, 1)
     for (unsigned i = 0; i < _nd; i++) {
-      unsigned* hash_value = (unsigned*)(_opt_graph + _node_size * i + _data_len + _neighbor_len);
+      unsigned* hash_value = (unsigned*)(_opt_graph + _node_size * _nd + _hash_len * i);
       T* vertex = (T*)(_opt_graph + _node_size * i + sizeof(float));
 
       for (unsigned num_integer = 0; num_integer < _hash_bitwidth >> 5; num_integer++) {
@@ -2005,7 +1996,7 @@ namespace diskann {
 
     std::ofstream file_hash_value(file_name, std::ios::binary | std::ios::out);
     for (unsigned i = 0; i < _nd; i++) {
-      _hash_value = (unsigned*)(_opt_graph + _node_size * i + _data_len + _neighbor_len);
+      _hash_value = (unsigned*)(_opt_graph + _node_size * _nd);
       for (unsigned j = 0; j < (_hash_bitwidth >> 5); j++) {
         file_hash_value.write((char*)(_hash_value + (_hash_len >> 2) * i + j), 4);
       }
@@ -2025,7 +2016,7 @@ namespace diskann {
       }
 
       std::cout << "LoadHashFunction" << std::endl;
-      _hash_function = (T*)(_opt_graph + _node_size * _nd);
+      _hash_function = (T*)(_opt_graph + _node_size * _nd + _hash_len * _nd);
       file_hash_function.read((char*)_hash_function, _aligned_dim * _hash_bitwidth * sizeof(T));
       file_hash_function.close();
       return true;
@@ -2039,16 +2030,16 @@ namespace diskann {
     std::ifstream file_hash_value(file_name, std::ios::binary);
     if (file_hash_value.is_open()) {
       std::cout << "LoadHashValue" << std::endl;
+      _hash_value = (unsigned*)(_opt_graph + _node_size * _nd);
       for (unsigned i = 0; i < _nd; i++) {
-        _hash_value = (unsigned*)(_opt_graph + _node_size * i + _data_len + _neighbor_len);
         for (unsigned j = 0; j < (_hash_bitwidth >> 5); j++) {
-          file_hash_value.read((char*)(_hash_value + j), 4);
-//          std::cout << *(_hash_value + j) << ", ";
+          file_hash_value.read((char*)(_hash_value + (_hash_len >> 2) * i + j), 4);
+//          std::cout << *(_hash_value + (_hash_len >> 2) * i + j) << ", ";
         }
 //        std::cout << std::endl;
       }
       file_hash_value.close();
-      std::cout << "LoadHashValue done" << std::endl; 
+      
       return true;
     }
     else
@@ -2076,7 +2067,7 @@ namespace diskann {
     for (; prefetch_counter < 8; ++prefetch_counter) {
       unsigned int id = neighbors[prefetch_counter];
       for (unsigned n = 0; n < hash_size; n += 8)
-        _mm_prefetch(_hash_value + (uint64_t)hash_size * id + n, _MM_HINT_NTA);
+        _mm_prefetch(_hash_value + (uint64_t)hash_size * id + n, _MM_HINT_T0);
     }
 
     unsigned long long hamming_result[4];
@@ -2088,20 +2079,30 @@ namespace diskann {
     for (unsigned m = 0; m < MaxM; m++) {
       if (prefetch_counter < MaxM) {
         unsigned int id = neighbors[prefetch_counter];
-        prefetch_counter++;
         for (unsigned n = 0; n < hash_size; n += 8)
-          _mm_prefetch(_opt_graph + _node_size * id + _data_len + _neighbor_len + n * sizeof(unsigned), _MM_HINT_NTA);
+          _mm_prefetch(_hash_value + (uint64_t)hash_size * id + n, _MM_HINT_T0);
+        prefetch_counter++;
       }
       unsigned id = neighbors[m];
-//      std::cout << "id: " << id << std::endl;
       unsigned hamming_distance = 0;
-      unsigned* hash_value_address = (unsigned*)(_opt_graph + _node_size * id + _data_len + _neighbor_len);
+//// For exact theta
+//      DistanceFastL2<T> *dist_fast = (DistanceFastL2<T> *) _distance;
+//      float query_abs = sqrtf(dist_fast->norm(query, (unsigned)_aligned_dim));
+//      T *   data = (T *) (_opt_graph + _node_size * id);
+//      float norm = *data;
+//      data++;
+//      float dist =
+//        dist_fast->compare(query, data, norm, (unsigned) _aligned_dim);
+//      hamming_distance = (unsigned)(acos((norm - dist) / 2 / sqrt(norm) / query_abs) * _hash_bitwidth / M_PI);
+// For approx theta
+      unsigned* hash_value_address = _hash_value + (uint64_t)hash_size * id;
 #ifdef USE_AVX2
       for (unsigned i = 0; i < (hash_size >> 3); i++) {
 //        std::cout << hash_value_address[0] << ", " << hash_value_address[1] << ", " << hash_value_address[2] << ", " << hash_value_address[3] << ", ";
         __m256i hash_value_avx;
         __m256i hamming_result_avx;
         hash_value_avx = _mm256_stream_load_si256((__m256i*)(hash_value_address));
+//        hash_value_avx = _mm256_loadu_si256((__m256i*)(hash_value_address));
         hamming_result_avx = _mm256_xor_si256(hashed_query_avx[i], hash_value_avx);
 #ifdef __AVX512VPOPCNTDQ__
         hamming_result_avx = _mm256_popcnt_epi64(hamming_result_avx);
@@ -2125,7 +2126,7 @@ namespace diskann {
 #endif
 //      std::cout << "id: " << id << ", hamming_distance: " << hamming_distance << std::endl;
       HashNeighbor cat_hamming_id(id, hamming_distance);
-//      theta_queue[theta_queue_size] = cat_hamming_id;
+      theta_queue[theta_queue_size] = cat_hamming_id;
 //      theta_queue_size++;
       if ((theta_queue_size_limit < theta_queue_size) && (hamming_distance < hamming_distance_max.distance)) {
         theta_queue[theta_queue_size] = theta_queue[hamming_distance_max.id];
@@ -2133,7 +2134,7 @@ namespace diskann {
         index = std::max_element(theta_queue.begin(), theta_queue.begin() + theta_queue_size_limit);
         hamming_distance_max.id = std::distance(theta_queue.begin(), index);
         hamming_distance_max.distance = theta_queue[hamming_distance_max.id].distance;
-//        theta_queue_size++;
+        theta_queue_size++;
       }
       else {
         theta_queue[theta_queue_size] = cat_hamming_id;
