@@ -110,7 +110,7 @@ namespace diskann {
     unsigned total_traverse;
     unsigned total_traverse_miss;
 #endif
-#ifdef THETA_GUIDED_SEARCH
+#ifdef ADA_NNS
     // [SJ]: Adding approximation scheme
     float _approx_rate;
     unsigned _hash_bitwidth;

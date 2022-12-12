@@ -64,7 +64,7 @@ int search_memory_index(int argc, char** argv) {
 #ifdef SORT_BY_EXACT_THETA
   ctr += 3;
 #endif
-//#ifdef THETA_GUIDED_SEARCH
+//#ifdef ADA_NNS
   // [SJ]: Adding approximation scheme
   std::string approx_scheme(argv[ctr++]);
   if ((approx_scheme != std::string("baseline")) &&
@@ -118,7 +118,7 @@ int search_memory_index(int argc, char** argv) {
   index.load(memory_index_file.c_str());  // to load NSG
   std::cout << "Index loaded" << std::endl;
 
-#ifdef THETA_GUIDED_SEARCH
+#ifdef ADA_NNS
   index._approx_rate = approx_rate;
   index._hash_bitwidth = hash_bitwidth;
 #endif
@@ -129,7 +129,7 @@ int search_memory_index(int argc, char** argv) {
   index.total_traverse = 0;
   index.total_traverse_miss = 0;
 #endif
-#ifdef THETA_GUIDED_SEARCH
+#ifdef ADA_NNS
   // [SJ]: Load hash_function & hash_value
   std::string hash_function_bin = memory_index_file;
   std::string hash_value_bin = memory_index_file;
@@ -178,7 +178,7 @@ int search_memory_index(int argc, char** argv) {
 //#pragma omp parallel for schedule(dynamic, 1)
     for (int64_t i = 0; i < (int64_t) query_num; i++) {
       auto qs = std::chrono::high_resolution_clock::now();
-//#ifdef THETA_GUIDED_SEARCH
+//#ifdef ADA_NNS
 //      for (unsigned a = 0; a < (hash_bitwidth >> 5) * query_aligned_dim; a += 1) {
 //        _mm_prefetch(&index._hash_function[a], _MM_HINT_T0);
 //      }
@@ -234,7 +234,7 @@ int search_memory_index(int argc, char** argv) {
     timer[2] += index.profile_time[tid * index.num_timer + 2];
     timer[3] += index.profile_time[tid * index.num_timer + 3];
   }
-#ifdef THETA_GUIDED_SEARCH
+#ifdef ADA_NNS
     std::cout << "visited_init time: " << timer[0] / query_num << "us" << std::endl;
     std::cout << "query_hash time: " << timer[1] / query_num << "us" << std::endl;
     std::cout << "hash_approx time: " << timer[2] / query_num << "us" << std::endl;
@@ -255,7 +255,7 @@ int search_memory_index(int argc, char** argv) {
                             query_num, recall_at);
     test_id++;
   }
-//#ifdef THETA_GUIDED_SEARCH
+//#ifdef ADA_NNS
 //  delete[] index._hash_function;
 //#endif
   diskann::aligned_free(query);
@@ -263,7 +263,7 @@ int search_memory_index(int argc, char** argv) {
 }
 
 int main(int argc, char** argv) {
-//#ifdef THETA_GUIDED_SEARCH
+//#ifdef ADA_NNS
   if (argc < 14) {
     std::cout
         << "Usage: " << argv[0]

@@ -1097,7 +1097,7 @@ namespace diskann {
   void Index<T, TagT>::optimize_graph() {  // use after build or load
     _data_len = (_aligned_dim + 1) * sizeof(float);
     _neighbor_len = (_width + 1) * sizeof(unsigned);
-#ifdef THETA_GUIDED_SEARCH
+#ifdef ADA_NNS
     _hash_len = (_hash_bitwidth >> 3);
     _node_size = _data_len + _neighbor_len;
     _hash_function_size = _aligned_dim * _hash_bitwidth * sizeof(float);
@@ -1158,7 +1158,7 @@ namespace diskann {
 #ifdef SORT_BY_EXACT_THETA
     float query_norm = dist_fast->norm(query, (unsigned) _aligned_dim);
 #endif
-#ifdef THETA_GUIDED_SEARCH
+#ifdef ADA_NNS
 #ifdef PROFILE
   auto query_hash_start = std::chrono::high_resolution_clock::now();
 #endif
@@ -1233,7 +1233,7 @@ namespace diskann {
             (unsigned *) (_opt_graph + _node_size * n + _data_len);
         unsigned MaxM = *neighbors;
         neighbors++;
-#ifdef THETA_GUIDED_SEARCH
+#ifdef ADA_NNS
 #ifdef PROFILE
         auto hash_approx_start = std::chrono::high_resolution_clock::now();
 #endif
@@ -1247,7 +1247,7 @@ namespace diskann {
 #ifdef PROFILE
         auto dist_start = std::chrono::high_resolution_clock::now();
 #endif
-#ifdef THETA_GUIDED_SEARCH
+#ifdef ADA_NNS
         for (unsigned m = 0; m < theta_queue_size; ++m) {
           _mm_prefetch(_opt_graph + _node_size * theta_queue[m].id, _MM_HINT_T0);
         }
@@ -1927,7 +1927,7 @@ namespace diskann {
     return 0;
   }
 
-#ifdef THETA_GUIDED_SEARCH
+#ifdef ADA_NNS
   // [SJ]: Adding approximation scheme
   template<typename T, typename TagT>
   void Index<T, TagT>::GenerateHashFunction (const char* file_name) {
