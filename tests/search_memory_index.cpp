@@ -80,7 +80,7 @@ int search_memory_index(int argc, char** argv) {
 
 //    return -1;
   }
-  float approx_rate = std::atof(argv[ctr++]);
+  float tau = std::atof(argv[ctr++]);
   unsigned hash_bitwidth = std::atoi(argv[ctr++]);
 //#endif
 
@@ -119,8 +119,8 @@ int search_memory_index(int argc, char** argv) {
   std::cout << "Index loaded" << std::endl;
 
 #ifdef ADA_NNS
-  index._approx_rate = approx_rate;
-  index._hash_bitwidth = hash_bitwidth;
+  index.set_tau(tau);
+  index.set_hash_bitwidth(hash_bitwidth);
 #endif
   if (metric == diskann::FAST_L2)
     index.optimize_graph();
@@ -271,7 +271,7 @@ int main(int argc, char** argv) {
            "[data_file.bin]  "
            "[memory_index_path]  [num_threads] "
            "[query_file.bin]  [truthset.bin (use \"null\" for none)] "
-           " [K] [result_output_prefix] [approx_scheme] [approx_rate] [hash_bitwidth]"
+           " [K] [result_output_prefix] [approx_scheme] [tau] [hash_bitwidth]"
 //#else
 //  if (argc < 11) {
 //    std::cout

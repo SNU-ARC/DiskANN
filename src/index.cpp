@@ -1098,10 +1098,10 @@ namespace diskann {
     _data_len = (_aligned_dim + 1) * sizeof(float);
     _neighbor_len = (_width + 1) * sizeof(unsigned);
 #ifdef ADA_NNS
-    _hash_len = (_hash_bitwidth >> 3);
+    uint64_t _hash_len = (_hash_bitwidth >> 3);
     _node_size = _data_len + _neighbor_len;
-    _hash_function_size = _aligned_dim * _hash_bitwidth * sizeof(float);
-//    _opt_graph = (char *) mmap(NULL, _node_size * _nd + _hash_len * _nd + _hash_function_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_POPULATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
+    uint64_t _hash_function_size = _aligned_dim * _hash_len;
+//    _opt_graph = (char *) mmap(NULL, _node_size * _nd + _hash_size * _nd + _hash_function_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_POPULATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
     _opt_graph = (char *) malloc(_node_size * _nd + _hash_len * _nd + _hash_function_size);
 #else
     _node_size = _data_len + _neighbor_len;
@@ -1172,7 +1172,7 @@ namespace diskann {
   std::chrono::duration<double> query_hash_diff = query_hash_end - query_hash_start;
   profile_time[tid * num_timer + 1] += query_hash_diff.count() * 1000000;
 #endif
-    __m256i hashed_query_avx[hash_size >> 3];
+    __m256i hashed_query_avx[hash_size >>3];
     for (unsigned int m = 0; m < (hash_size >> 3); m++) {
       hashed_query_avx[m] = _mm256_loadu_si256((__m256i*)&hashed_query[m << 3]);
     }
@@ -1928,12 +1928,12 @@ namespace diskann {
   }
 
 #ifdef ADA_NNS
-  // [SJ]: Adding approximation scheme
   template<typename T, typename TagT>
   void Index<T, TagT>::GenerateHashFunction (const char* file_name) {
     DistanceFastL2<T>* dist_fast = (DistanceFastL2<T>*) _distance;
     std::normal_distribution<float> norm_dist (0.0, 1.0);
     std::mt19937 gen(rand());
+    uint64_t _hash_len = (_hash_bitwidth >> 3);
     _hash_function = (T*)(_opt_graph + _node_size * _nd + _hash_len * _nd);
     float hash_function_norm[_hash_bitwidth - 1];
 
@@ -1970,6 +1970,7 @@ namespace diskann {
   template<typename T, typename TagT>
   void Index<T, TagT>::GenerateHashValue (const char* file_name) {
     DistanceFastL2<T>* dist_fast = (DistanceFastL2<T>*) _distance;
+    uint64_t _hash_len = (_hash_bitwidth >> 3);
 
     std::cout << "GenerateHashValue" << std::endl;
     auto s = std::chrono::high_resolution_clock::now();
@@ -1994,19 +1995,20 @@ namespace diskann {
     std::chrono::duration<double> diff = e - s;
     std::cout << "HashValue generation time: " << diff.count() * 1000 << std::endl;;
 
-    std::ofstream file_hash_value(file_name, std::ios::binary | std::ios::out);
+    std::ofstream file_hashed_set(file_name, std::ios::binary | std::ios::out);
     for (unsigned i = 0; i < _nd; i++) {
-      _hash_value = (unsigned*)(_opt_graph + _node_size * _nd);
-      for (unsigned j = 0; j < (_hash_bitwidth >> 5); j++) {
-        file_hash_value.write((char*)(_hash_value + (_hash_len >> 2) * i + j), 4);
+      _hashed_set = (unsigned*)(_opt_graph + _node_size * _nd);
+      for (unsigned j = 0; j < (_hash_len >> 2); j++) {
+        file_hashed_set.write((char*)(_hashed_set + (_hash_len >> 2) * i + j), 4);
       }
     }
-    file_hash_value.close();
+    file_hashed_set.close();
   }
 
   template<typename T, typename TagT>
   bool Index<T, TagT>::LoadHashFunction (const char* file_name) {
     std::ifstream file_hash_function(file_name, std::ios::binary);
+    uint64_t _hash_len = (_hash_bitwidth >> 3);
     if (file_hash_function.is_open()) {
       unsigned hash_bitwidth_temp;
       file_hash_function.read((char*)&hash_bitwidth_temp, sizeof(unsigned));
@@ -2027,18 +2029,17 @@ namespace diskann {
 
   template<typename T, typename TagT>
   bool Index<T, TagT>::LoadHashValue (const char* file_name) {
-    std::ifstream file_hash_value(file_name, std::ios::binary);
-    if (file_hash_value.is_open()) {
+    std::ifstream file_hashed_set(file_name, std::ios::binary);
+    uint64_t _hash_len = (_hash_bitwidth >> 3);
+    if (file_hashed_set.is_open()) {
       std::cout << "LoadHashValue" << std::endl;
-      _hash_value = (unsigned*)(_opt_graph + _node_size * _nd);
+      _hashed_set = (unsigned*)(_opt_graph + _node_size * _nd);
       for (unsigned i = 0; i < _nd; i++) {
-        for (unsigned j = 0; j < (_hash_bitwidth >> 5); j++) {
-          file_hash_value.read((char*)(_hash_value + (_hash_len >> 2) * i + j), 4);
-//          std::cout << *(_hash_value + (_hash_len >> 2) * i + j) << ", ";
+        for (unsigned j = 0; j < (_hash_len >> 2); j++) {
+          file_hashed_set.read((char*)(_hashed_set + (_hash_len >> 2) * i + j), 4);
         }
-//        std::cout << std::endl;
       }
-      file_hash_value.close();
+      file_hashed_set.close();
       
       return true;
     }
@@ -2067,12 +2068,12 @@ namespace diskann {
     for (; prefetch_counter < 8; ++prefetch_counter) {
       unsigned int id = neighbors[prefetch_counter];
       for (unsigned n = 0; n < hash_size; n += 8)
-        _mm_prefetch(_hash_value + (uint64_t)hash_size * id + n, _MM_HINT_T0);
+        _mm_prefetch(_hashed_set + (uint64_t)hash_size * id + n, _MM_HINT_T0);
     }
 
     unsigned long long hamming_result[4];
     unsigned theta_queue_size = 0;
-    unsigned theta_queue_size_limit = (unsigned)ceil(MaxM * _approx_rate);
+    unsigned theta_queue_size_limit = (unsigned)ceil(MaxM * _tau);
     HashNeighbor hamming_distance_max(0, 0);
     std::vector<HashNeighbor>::iterator index;
 
@@ -2080,7 +2081,7 @@ namespace diskann {
       if (prefetch_counter < MaxM) {
         unsigned int id = neighbors[prefetch_counter];
         for (unsigned n = 0; n < hash_size; n += 8)
-          _mm_prefetch(_hash_value + (uint64_t)hash_size * id + n, _MM_HINT_T0);
+          _mm_prefetch(_hashed_set + (uint64_t)hash_size * id + n, _MM_HINT_T0);
         prefetch_counter++;
       }
       unsigned id = neighbors[m];
@@ -2095,7 +2096,7 @@ namespace diskann {
 //        dist_fast->compare(query, data, norm, (unsigned) _aligned_dim);
 //      hamming_distance = (unsigned)(acos((norm - dist) / 2 / sqrt(norm) / query_abs) * _hash_bitwidth / M_PI);
 // For approx theta
-      unsigned* hash_value_address = _hash_value + (uint64_t)hash_size * id;
+      unsigned* hash_value_address = _hashed_set + (uint64_t)hash_size * id;
 #ifdef USE_AVX2
       for (unsigned i = 0; i < (hash_size >> 3); i++) {
 //        std::cout << hash_value_address[0] << ", " << hash_value_address[1] << ", " << hash_value_address[2] << ", " << hash_value_address[3] << ", ";

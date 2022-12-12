@@ -111,14 +111,8 @@ namespace diskann {
     unsigned total_traverse_miss;
 #endif
 #ifdef ADA_NNS
-    // [SJ]: Adding approximation scheme
-    float _approx_rate;
-    unsigned _hash_bitwidth;
-    unsigned _hash_function_size;
-    T* _hash_function;
-    unsigned* _hash_value;
-    uint64_t _hash_len;
-    
+    DISKANN_DLLEXPORT void set_tau(const float tau) { _tau = tau; }
+    DISKANN_DLLEXPORT void set_hash_bitwidth(const uint64_t hash_bitwidth) { _hash_bitwidth = hash_bitwidth; }
     DISKANN_DLLEXPORT void GenerateHashFunction(const char* file_name);
     DISKANN_DLLEXPORT void GenerateHashValue(const char* file_name);
     DISKANN_DLLEXPORT bool LoadHashFunction(const char* file_name);
@@ -235,5 +229,14 @@ namespace diskann {
     tsl::robin_set<unsigned> _empty_slots;
 
     std::mutex _change_lock;  // Allow only 1 thread to insert/delete
+
+#ifdef ADA_NNS
+    float _tau; // candidate selection threshold
+                // _tau = 0.3 means only top 30% of neighbors 
+                // having the smallest angular distance to the query are selected
+    unsigned _hash_bitwidth;
+    T* _hash_function;
+    unsigned* _hashed_set;
+#endif
   };
 }  // namespace diskann
