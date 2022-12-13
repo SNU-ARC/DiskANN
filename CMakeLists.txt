@@ -98,10 +98,11 @@ else()
 	add_compile_options(-march=native -Wall -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -fopenmp -fopenmp-simd -funroll-loops -Wfatal-errors -DUSE_ACCELERATED_PQ -DUSE_AVX2 -O3 -g3)
 endif()
 
-#add_definitions(-DGET_DIST_COMP)
-#add_definitions(-DPROFILE)
-#add_definitions(-DMMAP_HUGETLB)
-add_definitions(-DADA_NNS)
+
+#add_definitions(-DGET_DIST_COMP) # [ARC-SJ] Enable to count # of distance compute and Speedup
+#add_definitions(-DPROFILE) # [ARC-SJ] Enable to measure the performance bottleneck
+#add_definitions(-DMMAP_HUGETLB) # [ARC-SJ] Enable to allocate huge page instead of malloc
+add_definitions(-DADA_NNS) # [ARC-SJ] Enable to use ADA-NNS
 
 add_subdirectory(src)
 add_subdirectory(tests)
