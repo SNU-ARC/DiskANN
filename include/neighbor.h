@@ -146,7 +146,8 @@ namespace diskann {
     return right;
   }
 
-  // SJ: For hamming distance
+// [ARC-SJ]: Structrue for selected pool
+#ifdef ADA_NNS
   struct HashNeighbor{
     unsigned id;
     unsigned distance;
@@ -158,41 +159,5 @@ namespace diskann {
       return distance < other.distance;
     }
   };
-
-  static inline unsigned HashInsertIntoPool(HashNeighbor *addr, unsigned K,
-                                        HashNeighbor nn) {
-    // find the location to insert
-    unsigned left = 0, right = K - 1;
-    if (addr[left].distance > nn.distance) {
-      memmove((char *) &addr[left + 1], &addr[left], K * sizeof(Neighbor));
-      addr[left] = nn;
-      return left;
-    }
-    if (addr[right].distance < nn.distance) {
-      addr[K] = nn;
-      return K;
-    }
-    while (right > 1 && left < right - 1) {
-      unsigned mid = (left + right) / 2;
-      if (addr[mid].distance > nn.distance)
-        right = mid;
-      else
-        left = mid;
-    }
-    // check equal ID
-
-    while (left > 0) {
-      if (addr[left].distance < nn.distance)
-        break;
-      if (addr[left].id == nn.id)
-        return K + 1;
-      left--;
-    }
-    if (addr[left].id == nn.id || addr[right].id == nn.id)
-      return K + 1;
-    memmove((char *) &addr[right + 1], &addr[right],
-            (K - right) * sizeof(Neighbor));
-    addr[right] = nn;
-    return right;
-  }
+#endif
 }  // namespace diskann

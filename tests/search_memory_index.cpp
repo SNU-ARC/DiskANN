@@ -67,19 +67,6 @@ int search_memory_index(int argc, char** argv) {
 //#ifdef ADA_NNS
   // [SJ]: Adding approximation scheme
   std::string approx_scheme(argv[ctr++]);
-  if ((approx_scheme != std::string("baseline")) &&
-      (approx_scheme != std::string("test")) &&
-      (approx_scheme != std::string("sort_by_exact_theta")) &&
-      (approx_scheme != std::string("aid_by_exact_theta")) &&
-      (approx_scheme != std::string("aid_by_approx_theta"))) {
-    std::cout << "Must mention which approximation scheme to use" << std::endl;
-    std::cout << "\t- baseline: No approximation scheme" << std::endl;
-    std::cout << "\t- sort_by_exact_theta: Use exact angular distance instead of distance" << std::endl;
-    std::cout << "\t- aid_by_exact_theta: Use exact angular distance to filter less relevant vertices" << std::endl;
-    std::cout << "\t- aid_by_approx_theta: Use hamming distance of hash values to filter less relevant vertices" << std::endl;
-
-//    return -1;
-  }
   float tau = std::atof(argv[ctr++]);
   unsigned hash_bitwidth = std::atoi(argv[ctr++]);
 //#endif
@@ -125,12 +112,8 @@ int search_memory_index(int argc, char** argv) {
   if (metric == diskann::FAST_L2)
     index.optimize_graph();
 
-#ifdef GET_MISS_TRAVERSE
-  index.total_traverse = 0;
-  index.total_traverse_miss = 0;
-#endif
 #ifdef ADA_NNS
-  // [SJ]: Load hash_function & hash_value
+  // [ARC-SJ]: Read or generate hash function & hashed set
   std::string hash_function_bin = memory_index_file;
   std::string hash_value_bin = memory_index_file;
   hash_function_bin += ".hash_function_";
@@ -139,18 +122,17 @@ int search_memory_index(int argc, char** argv) {
   hash_value_bin += std::to_string(hash_bitwidth);
   hash_function_bin += "b";
   hash_value_bin += "b";
-  if (index.LoadHashFunction(hash_function_bin.c_str())) {
-    if (!index.LoadHashValue(hash_value_bin.c_str()))
-      index.GenerateHashValue(hash_value_bin.c_str());
+  if (index.read_hash_function(hash_function_bin.c_str())) {
+    if (!index.read_hashed_set(hash_value_bin.c_str()))
+      index.generate_hashed_set(hash_value_bin.c_str());
   }
   else {
-    index.GenerateHashFunction(hash_function_bin.c_str());
-    index.GenerateHashValue(hash_value_bin.c_str());
+    index.generate_hash_function(hash_function_bin.c_str());
+    index.generate_hashed_set(hash_value_bin.c_str());
   }
 #endif
 #ifdef PROFILE
-  index.num_timer = 4;
-  index.profile_time.resize(num_threads * index.num_timer, 0.0);
+  index.set_timer(num_threads);
 #endif
 
   diskann::Parameters paras;
@@ -167,25 +149,23 @@ int search_memory_index(int argc, char** argv) {
 
   std::vector<double> latency_stats(query_num, 0);
 
-  boost::dynamic_bitset<> flags{index.print_nd(), 0};
+  // [ARC-SJ]: Minor optimization of greedy search 
+  //           Allocate visited list once
+  //           For large-scale dataset (e.g., DEEP100M),
+  //           repeated allocation is a huge overhead
+  boost::dynamic_bitset<> flags{index.get_nd(), 0};
 
   for (uint32_t test_id = 0; test_id < Lvec.size(); test_id++) {
     _u64 L = Lvec[test_id];
     query_result_ids[test_id].resize(recall_at * query_num);
 
-//    auto s = std::chrono::high_resolution_clock::now();
-//    omp_set_num_threads(num_threads);
-//#pragma omp parallel for schedule(dynamic, 1)
+    auto s = std::chrono::high_resolution_clock::now();
+    omp_set_num_threads(num_threads);
+#pragma omp parallel for schedule(dynamic, 1)
     for (int64_t i = 0; i < (int64_t) query_num; i++) {
       auto qs = std::chrono::high_resolution_clock::now();
-//#ifdef ADA_NNS
-//      for (unsigned a = 0; a < (hash_bitwidth >> 5) * query_aligned_dim; a += 1) {
-//        _mm_prefetch(&index._hash_function[a], _MM_HINT_T0);
-//      }
-//#endif
       if (metric == diskann::FAST_L2) {
         index.search_with_opt_graph(
-//            query + i * query_aligned_dim, recall_at, L,
             query + i * query_aligned_dim, flags, recall_at, L,
             query_result_ids[test_id].data() + i * recall_at);
       } else {
@@ -197,8 +177,8 @@ int search_memory_index(int argc, char** argv) {
       latency_stats[i] = diff.count() * 1000000;
       flags.reset();
     }
-//    auto e = std::chrono::high_resolution_clock::now();
-//    std::chrono::duration<double> diff = e - s;
+    auto e = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> diff = e - s;
 
 
     float recall = 0;
@@ -220,28 +200,31 @@ int search_memory_index(int argc, char** argv) {
               << (float) latency_stats[(_u64)(0.999 * query_num)]
               << std::setw(12) << recall << std::endl;
   }
-#ifdef GET_MISS_TRAVERSE
-  std::cout << "[Total_summary] # of traversed: " << index.total_traverse << ", ";
-  std::cout << "# of invalid: " << index.total_traverse_miss << ", ";
-  std::cout << "ratio: " << (float)index.total_traverse_miss / index.total_traverse  * 100 << std::endl;
+#ifdef GET_DIST_COMP
+  std::cout << "========Distance Compute Report========" << std::endl;
+  std::cout << "# of distance compute: " << index.get_total_dist_comp() << std::endl;
+  std::cout << "# of missed distance compute: " << index.get_total_dist_comp_miss() << std::endl;
+  std::cout << "Ratio: " << (float)index.get_total_dist_comp_miss() / index.get_total_dist_comp()  * 100 << " %" << std::endl;
+  std::cout << "Speedup: " << (float)(index.get_nd()) * query_num / index.get_total_dist_comp() << std::endl;
+  std::cout << "=====================================" << std::endl;
 #endif
 #ifdef PROFILE
   std::cout << "========Thread Latency Report========" << std::endl;
-  double* timer = (double*)calloc(index.num_timer, sizeof(double));
+  double* timer = (double*)calloc(4, sizeof(double));
   for (unsigned int tid = 0; tid < num_threads; tid++) {
-    timer[0] += index.profile_time[tid * index.num_timer];
-    timer[1] += index.profile_time[tid * index.num_timer + 1];
-    timer[2] += index.profile_time[tid * index.num_timer + 2];
-    timer[3] += index.profile_time[tid * index.num_timer + 3];
+    timer[0] += index.get_timer(tid * 4); // visited list init time
+    timer[1] += index.get_timer(tid * 4 + 1); // query hash stage time
+    timer[2] += index.get_timer(tid * 4 + 2); // candidate selection stage time
+    timer[3] += index.get_timer(tid * 4 + 3); // fast L2 distance compute time
   }
 #ifdef ADA_NNS
-    std::cout << "visited_init time: " << timer[0] / query_num << "us" << std::endl;
-    std::cout << "query_hash time: " << timer[1] / query_num << "us" << std::endl;
-    std::cout << "hash_approx time: " << timer[2] / query_num << "us" << std::endl;
-    std::cout << "dist time: " << timer[3] / query_num << "us" << std::endl;
+    std::cout << "visited_init time: " << timer[0] / query_num << "ms" << std::endl;
+    std::cout << "query_hash time: " << timer[1] / query_num << "ms" << std::endl;
+    std::cout << "cand_select time: " << timer[2] / query_num << "ms" << std::endl;
+    std::cout << "dist time: " << timer[3] / query_num << "ms" << std::endl;
 #else
-    std::cout << "visited_init time: " << timer[0] / query_num << "us" << std::endl;
-    std::cout << "dist time: " << timer[3] / query_num << "us" << std::endl;
+    std::cout << "visited_init time: " << timer[0] / query_num << "ms" << std::endl;
+    std::cout << "dist time: " << timer[3] / query_num << "ms" << std::endl;
 #endif
   std::cout << "=====================================" << std::endl;
 #endif
@@ -255,9 +238,6 @@ int search_memory_index(int argc, char** argv) {
                             query_num, recall_at);
     test_id++;
   }
-//#ifdef ADA_NNS
-//  delete[] index._hash_function;
-//#endif
   diskann::aligned_free(query);
   return 0;
 }
@@ -271,7 +251,7 @@ int main(int argc, char** argv) {
            "[data_file.bin]  "
            "[memory_index_path]  [num_threads] "
            "[query_file.bin]  [truthset.bin (use \"null\" for none)] "
-           " [K] [result_output_prefix] [approx_scheme] [tau] [hash_bitwidth]"
+           " [K] [result_output_prefix] [log_prefix] [tau] [hash_bitwidth]"
 //#else
 //  if (argc < 11) {
 //    std::cout
@@ -286,10 +266,6 @@ int main(int argc, char** argv) {
         << std::endl;
     exit(-1);
   }
-//  if (mlockall(MCL_FUTURE)) {
-//    perror("mlockall failed:");
-//    return 0;
-//  }
   if (std::string(argv[1]) == std::string("int8"))
     search_memory_index<int8_t>(argc, argv);
   else if (std::string(argv[1]) == std::string("uint8"))

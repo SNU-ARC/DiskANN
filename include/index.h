@@ -106,25 +106,25 @@ namespace diskann {
     DISKANN_DLLEXPORT void search_with_opt_graph(const T *query, boost::dynamic_bitset<>& flags, size_t K,
                                                  size_t L, unsigned *indices);
 
-#ifdef GET_MISS_TRAVERSE
-    unsigned total_traverse;
-    unsigned total_traverse_miss;
+#ifdef GET_DIST_COMP
+    DISKANN_DLLEXPORT uint64_t get_total_dist_comp() { return _total_dist_comp; }
+    DISKANN_DLLEXPORT uint64_t get_total_dist_comp_miss() { return _total_dist_comp_miss; }
 #endif
 #ifdef ADA_NNS
     DISKANN_DLLEXPORT void set_tau(const float tau) { _tau = tau; }
     DISKANN_DLLEXPORT void set_hash_bitwidth(const uint64_t hash_bitwidth) { _hash_bitwidth = hash_bitwidth; }
-    DISKANN_DLLEXPORT void GenerateHashFunction(const char* file_name);
-    DISKANN_DLLEXPORT void GenerateHashValue(const char* file_name);
-    DISKANN_DLLEXPORT bool LoadHashFunction(const char* file_name);
-    DISKANN_DLLEXPORT bool LoadHashValue(const char* file_name);
-    DISKANN_DLLEXPORT void GenerateQueryHash(const T* query, unsigned* hashed_query, float* query_abs, unsigned hash_size);
-    DISKANN_DLLEXPORT unsigned FilterNeighbors(const __m256i* hashed_query_avx, std::vector<HashNeighbor>& theta_queue, const unsigned* neighbors, const unsigned MaxM, const unsigned hash_size, const T* query); 
+    DISKANN_DLLEXPORT void generate_hash_function(const char* file_name);
+    DISKANN_DLLEXPORT void generate_hashed_set(const char* file_name);
+    DISKANN_DLLEXPORT bool read_hash_function(const char* file_name);
+    DISKANN_DLLEXPORT bool read_hashed_set(const char* file_name);
+    DISKANN_DLLEXPORT void query_hash(const T* query, unsigned* hashed_query, float* query_abs, unsigned hash_size);
+    DISKANN_DLLEXPORT unsigned candidate_selection(const __m256i* hashed_query_avx, std::vector<HashNeighbor>& theta_queue, const unsigned* neighbors, const unsigned MaxM, const unsigned hash_size, const T* query); 
 #endif
 #ifdef PROFILE
-    unsigned num_timer = 0;
-    std::vector<double> profile_time;
+    DISKANN_DLLEXPORT void set_timer(const unsigned num_threads) { _profile_time.resize(num_threads * 4, 0.0); }
+    DISKANN_DLLEXPORT double get_timer(const unsigned idx) { return _profile_time[idx]; }
 #endif
-    DISKANN_DLLEXPORT size_t print_nd() { return _nd; };
+    DISKANN_DLLEXPORT size_t get_nd() { return _nd; };
 
     /*  Internals of the library */
    protected:
@@ -230,6 +230,10 @@ namespace diskann {
 
     std::mutex _change_lock;  // Allow only 1 thread to insert/delete
 
+#ifdef GET_DIST_COMP
+    uint64_t _total_dist_comp = 0; // # of distance compute during search
+    uint64_t _total_dist_comp_miss = 0; // # of distance compute, but not pushed in candidate pool
+#endif
 #ifdef ADA_NNS
     float _tau; // candidate selection threshold
                 // _tau = 0.3 means only top 30% of neighbors 
@@ -237,6 +241,9 @@ namespace diskann {
     unsigned _hash_bitwidth;
     T* _hash_function;
     unsigned* _hashed_set;
+#endif
+#ifdef PROFILE
+    std::vector<double> _profile_time;
 #endif
   };
 }  // namespace diskann
