@@ -20,7 +20,7 @@ cd build && ./build.sh
 
 We now detail the main binaries using which one can build and search indices which reside in memory-resident indices.
 
-**Usage for in-memory indices (baseline)**
+**Usage for in-memory search scripts**
 ================================
 
 To use the greedy search, use the `tests/evaluate_baseline.sh` script.
@@ -44,6 +44,9 @@ The argument is as follows:
 (i) dataset: same as (i) above in evaluate_baseline script.
 
 To change parameter for search (e.g., K, L, number of threads), open `evaluate_baseline.sh` and modify the parameter `K, L_SIZE, THREAD`.
+
+**Usage for in-memory indices**
+================================
 
 To generate index, use the `tests/build_memory_index` program. 
 --------------------------------------------------------------
