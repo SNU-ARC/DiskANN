@@ -35,14 +35,14 @@ The argument is as follows:
 
 To change parameter for search (e.g., K, L, number of threads), open `evaluate_baseline.sh` and modify the parameter `K, L_SIZE, THREAD`.
 
-To use the ADA-NNS, use the `tests/evaluate_ADA_NNS.sh` script.
+To use the ADA-NNS, use the `tests/evaluate_ADA-NNS.sh` script.
 -------------------------------------------------------------------------------
 ```
 cd tests/
-./evaluate_ADA_NNS.sh [dataset]
+./evaluate_ADA-NNS.sh [dataset]
 ```
 The argument is as follows:
 
 (i) dataset: same as (i) above in evaluate_baseline script.
 
-To change parameter for search (e.g., K, L, number of threads), open `evaluate_baseline.sh` and modify the parameter `K, L_SIZE, THREAD`.
+To change parameter for search (e.g., K, L, number of threads), open `evaluate_ADA-NNS.sh` and modify the parameter `K, L_SIZE, THREAD`.
