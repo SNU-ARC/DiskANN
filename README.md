@@ -23,7 +23,7 @@ We now detail the main binaries using which one can build and search indices whi
 **Usage for in-memory indices (baseline)**
 ================================
 
-To use the baseline greedy search, use the `tests/evaluate_baseline.sh` script.
+To use the greedy search, use the `tests/evaluate_baseline.sh` script.
 -------------------------------------------------------------------------------
 ```
 cd tests/
@@ -32,7 +32,7 @@ cd tests/
 The argument is as follows:
 (i) dataset: Name of the dataset. The script supports various real datasets (e.g., SIFT1M, SIFT10M, GIST1M, CRAWL, DEEP1M, DEEP10M, DEEP100M)
 
-To change parameter for search (e.g., K, L, number of threads), open `evaluate_baseline.sh` and modify the parameter K, L_SIZE, THREAD
+To change parameter for search (e.g., K, L, number of threads), open `evaluate_baseline.sh` and modify the parameter `K, L_SIZE, THREAD`.
 ```
 vim evaluate_baseline.sh
 ```
