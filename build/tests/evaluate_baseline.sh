@@ -215,9 +215,9 @@ vamana_deep100M_16T() {
       echo "fvecs to bin"
       ./utils/fvecs_to_bin deep100M/deep100M_query.fvecs deep100M/deep100M_query.fvecs.bin
     fi
-    if [ ! -f "deep100M/deep100M_groundtruth.ivecs.bin" ]; then
+    if [ ! -f "deep100M/deep100M_groundtruth_${id}.ivecs.bin" ]; then
       echo "ivecs to bin"
-      ./utils/ivecs_to_bin deep100M/deep100M_groundtruth.ivecs deep100M/deep100M_groundtruth.ivecs.bin
+      ./utils/ivecs_to_bin deep100M/deep100M_groundtruth.ivecs deep100M/deep100M_groundtruth_${id}.ivecs.bin ${id}
     fi
 
     # Build proximity graph
@@ -231,11 +231,12 @@ vamana_deep100M_16T() {
   # Perform search
   sudo sh -c "sync && echo 3 > /proc/sys/vm/drop_caches"
   for id in ${sub_num[@]}; do
-    ./search_memory_index_multi float fast_l2 deep100M/deep100M_base_${id}.fvecs.bin deep100M_${id}.index ${4} deep100M/deep100M_query.fvecs.bin \
-      deep100M/deep100M_groundtruth.ivecs.bin ${2} deep100M_search_L${1}K${2}T${4}_${id}_${3} ${id} ${1} > \
+    ./search_memory_index float fast_l2 deep100M/deep100M_base_${id}.fvecs.bin deep100M_${id}.index ${4} deep100M/deep100M_query.fvecs.bin \
+      deep100M/deep100M_groundtruth_${id}.ivecs.bin ${2} deep100M_search_L${1}K${2}T${4}_${id}_${3} ${1} > \
       deep100M_search_L${1}K${2}_${3}_T${4}_${id}.log &
   done
   wait
+  rm -rf deep100M_search_L${1}K${2}_${3}_T${4}.log
   awk 'NR==10{ print; exit }' deep100M_search_L${1}K${2}_${3}_T${4}_0.log >> deep100M_search_L${1}K${2}_${3}_T${4}.log
   awk 'NR==11{ print; exit }' deep100M_search_L${1}K${2}_${3}_T${4}_0.log >> deep100M_search_L${1}K${2}_${3}_T${4}.log
   for id in ${sub_num[@]}; do

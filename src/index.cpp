@@ -1948,7 +1948,7 @@ namespace diskann {
     }
     auto e = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> diff = e - s;
-    std::cout << "HashFunction generation time: " << diff.count() * 1000 << std::endl;;
+//    std::cout << "HashFunction generation time: " << diff.count() * 1000 << std::endl;;
 
     std::ofstream file_hash_function(file_name, std::ios::binary | std::ios::out);
     file_hash_function.write((char*)&_hash_bitwidth, sizeof(unsigned));
@@ -1976,13 +1976,11 @@ namespace diskann {
         for (unsigned bit_count = 0; bit_count < 32; bit_count++) {
           hash_value[num_integer] = (unsigned)(temp_bool.to_ulong());
         }
-//        std::cout << hash_value[num_integer] << ", ";
       }
-//      std::cout << std::endl;
     }
     auto e = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> diff = e - s;
-    std::cout << "HashValue generation time: " << diff.count() * 1000 << std::endl;;
+//    std::cout << "HashValue generation time: " << diff.count() * 1000 << std::endl;;
 
     std::ofstream file_hashed_set(file_name, std::ios::binary | std::ios::out);
     for (unsigned i = 0; i < _nd; i++) {
@@ -2075,24 +2073,12 @@ namespace diskann {
       }
       unsigned id = neighbors[m];
       unsigned hamming_distance = 0;
-//// For exact theta
-//      DistanceFastL2<T> *dist_fast = (DistanceFastL2<T> *) _distance;
-//      float query_abs = sqrtf(dist_fast->norm(query, (unsigned)_aligned_dim));
-//      T *   data = (T *) (_opt_graph + _node_size * id);
-//      float norm = *data;
-//      data++;
-//      float dist =
-//        dist_fast->compare(query, data, norm, (unsigned) _aligned_dim);
-//      hamming_distance = (unsigned)(acos((norm - dist) / 2 / sqrt(norm) / query_abs) * _hash_bitwidth / M_PI);
-// For approx theta
       unsigned* hash_value_address = _hashed_set + (uint64_t)hash_size * id;
 #ifdef USE_AVX2
       for (unsigned i = 0; i < (hash_size >> 3); i++) {
-//        std::cout << hash_value_address[0] << ", " << hash_value_address[1] << ", " << hash_value_address[2] << ", " << hash_value_address[3] << ", ";
         __m256i hash_value_avx;
         __m256i hamming_result_avx;
         hash_value_avx = _mm256_stream_load_si256((__m256i*)(hash_value_address));
-//        hash_value_avx = _mm256_loadu_si256((__m256i*)(hash_value_address));
         hamming_result_avx = _mm256_xor_si256(hashed_query_avx[i], hash_value_avx);
 #ifdef __AVX512VPOPCNTDQ__
         hamming_result_avx = _mm256_popcnt_epi64(hamming_result_avx);
@@ -2107,17 +2093,14 @@ namespace diskann {
 #endif
         hash_value_address += 8;
       }
-//      std::cout << std::endl;
 #else
       for (unsigned num_integer = 0; num_integer < _hash_bitwidth / (8 * sizeof(unsigned)); num_integer++) {
         hamming_result[num_integer] = hashed_query[num_integer] ^ hash_value_address[num_integer];
         hamming_distance += __builtin_popcount(hamming_result[num_integer]);
       }
 #endif
-//      std::cout << "id: " << id << ", hamming_distance: " << hamming_distance << std::endl;
       HashNeighbor cat_hamming_id(id, hamming_distance);
       selected_pool[selected_pool_size] = cat_hamming_id;
-//      selected_pool_size++;
       if ((selected_pool_size_limit < selected_pool_size) && (hamming_distance < hamming_distance_max.distance)) {
         selected_pool[selected_pool_size] = selected_pool[hamming_distance_max.id];
         selected_pool[hamming_distance_max.id] = cat_hamming_id;
