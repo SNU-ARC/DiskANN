@@ -20,8 +20,32 @@ cd build && ./build.sh
 
 We now detail the main binaries using which one can build and search indices which reside in memory-resident indices.
 
-**Usage for in-memory indices**
+**Usage for in-memory indices (baseline)**
 ================================
+
+To use the baseline greedy search, use the `tests/evaluate_baseline.sh` script.
+-------------------------------------------------------------------------------
+```
+cd tests/
+./evaluate_baseline.sh [dataset]
+```
+The argument is as follows:
+(i) dataset: Name of the dataset. The script supports various real datasets (e.g., SIFT1M, SIFT10M, GIST1M, CRAWL, DEEP1M, DEEP10M, DEEP100M)
+
+To change parameter for search (e.g., K, L, number of threads), open `evaluate_baseline.sh` and modify the parameter K, L_SIZE, THREAD
+```
+vim evaluate_baseline.sh
+```
+
+
+To use the baseline greedy search, use the `tests/evaluate_baseline.sh` script.
+-------------------------------------------------------------------------------
+```
+cd tests/
+./evaluate_baseline.sh [dataset]
+```
+The argument is as follows:
+(i) dataset: Name of the dataset. The script supports various real datasets (e.g., SIFT1M, SIFT10M, GIST1M, CRAWL, DEEP1M, DEEP10M, DEEP100M)
 
 To generate index, use the `tests/build_memory_index` program. 
 --------------------------------------------------------------
