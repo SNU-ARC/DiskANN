@@ -230,19 +230,19 @@ vamana_deep100M_16T() {
 
   # Perform search
   sudo sh -c "sync && echo 3 > /proc/sys/vm/drop_caches"
-  rm -rf deep100M_search_L${1}K${2}_${3}_T${4}.log
   for id in ${sub_num[@]}; do
     ./search_memory_index_ADA_NNS float fast_l2 deep100M/deep100M_base_${id}.fvecs.bin deep100M_${id}.index ${4} deep100M/deep100M_query.fvecs.bin \
       deep100M/deep100M_groundtruth_${id}.ivecs.bin ${2} deep100M_search_L${1}K${2}T${4}_${id}_${3} 0.3 512 ${1} > \
       deep100M_search_L${1}K${2}_${3}_T${4}_${id}.log &
   done
   wait
-#  awk 'NR==12{ print; exit }' deep100M_search_L${1}K${2}_${3}_T${4}_0.log >> deep100M_search_L${1}K${2}_${3}_T${4}.log
-#  awk 'NR==13{ print; exit }' deep100M_search_L${1}K${2}_${3}_T${4}_0.log >> deep100M_search_L${1}K${2}_${3}_T${4}.log
-#  for id in ${sub_num[@]}; do
-#    awk 'NR==14{ print $0; exit }' deep100M_search_L${1}K${2}_${3}_T${4}_${id}.log >> deep100M_search_L${1}K${2}_${3}_T${4}.log
-#  done
-#  cat deep100M_search_L${1}K${2}_${3}_T${4}.log | awk '{sum += $5;} {if(NR==3) min = $2} {if($2 < min) min = $2} END { print "min_qps: " min; print "recall: " sum; }' >> deep100M_search_L${1}K${2}_${3}_T${4}.log 
+  rm -rf deep100M_search_L${1}K${2}_${3}_T${4}.log
+  awk 'NR==12{ print; exit }' deep100M_search_L${1}K${2}_${3}_T${4}_0.log >> deep100M_search_L${1}K${2}_${3}_T${4}.log
+  awk 'NR==13{ print; exit }' deep100M_search_L${1}K${2}_${3}_T${4}_0.log >> deep100M_search_L${1}K${2}_${3}_T${4}.log
+  for id in ${sub_num[@]}; do
+    awk 'NR==14{ print $0; exit }' deep100M_search_L${1}K${2}_${3}_T${4}_${id}.log >> deep100M_search_L${1}K${2}_${3}_T${4}.log
+  done
+  cat deep100M_search_L${1}K${2}_${3}_T${4}.log | awk '{sum += $5;} {if(NR==3) min = $2} {if($2 < min) min = $2} END { print "min_qps: " min; print "recall: " sum; }' >> deep100M_search_L${1}K${2}_${3}_T${4}.log 
 }
 
 if [ "${1}" == "sift1M" ]; then
