@@ -102,7 +102,6 @@ endif()
 #add_definitions(-DGET_DIST_COMP) # [ARC-SJ] Enable to count # of distance compute and Speedup
 #add_definitions(-DPROFILE) # [ARC-SJ] Enable to measure the performance bottleneck
 #add_definitions(-DMMAP_HUGETLB) # [ARC-SJ] Enable to allocate huge page instead of malloc
-add_definitions(-DADA_NNS) # [ARC-SJ] Enable to use ADA-NNS
 
 add_subdirectory(src)
 add_subdirectory(tests)

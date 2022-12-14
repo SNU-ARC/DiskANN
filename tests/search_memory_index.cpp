@@ -60,16 +60,12 @@ int search_memory_index(int argc, char** argv) {
   std::string truthset_bin(argv[ctr++]);
   _u64        recall_at = std::atoi(argv[ctr++]);
   std::string result_output_prefix(argv[ctr++]);
-  //  bool        use_optimized_search = std::atoi(argv[ctr++]);
-#ifdef SORT_BY_EXACT_THETA
-  ctr += 3;
-#endif
-//#ifdef ADA_NNS
-  // [SJ]: Adding approximation scheme
-  std::string approx_scheme(argv[ctr++]);
+
+// [SJ]: Variables for ADA-NNS 
+#ifdef ADA_NNS
   float tau = std::atof(argv[ctr++]);
   unsigned hash_bitwidth = std::atoi(argv[ctr++]);
-//#endif
+#endif
 
   bool calc_recall_flag = false;
 
@@ -243,25 +239,25 @@ int search_memory_index(int argc, char** argv) {
 }
 
 int main(int argc, char** argv) {
-//#ifdef ADA_NNS
-  if (argc < 14) {
+#ifdef ADA_NNS
+  if (argc < 13) {
     std::cout
         << "Usage: " << argv[0]
         << "  [index_type<float/int8/uint8>]  [dist_fn (l2/mips/fast_l2)] "
            "[data_file.bin]  "
            "[memory_index_path]  [num_threads] "
            "[query_file.bin]  [truthset.bin (use \"null\" for none)] "
-           " [K] [result_output_prefix] [log_prefix] [tau] [hash_bitwidth]"
-//#else
-//  if (argc < 11) {
-//    std::cout
-//        << "Usage: " << argv[0]
-//        << "  [index_type<float/int8/uint8>]  [dist_fn (l2/mips/fast_l2)] "
-//           "[data_file.bin]  "
-//           "[memory_index_path]  [num_threads] "
-//           "[query_file.bin]  [truthset.bin (use \"null\" for none)] "
-//           " [K] [result_output_prefix]"
-//#endif
+           " [K] [result_output_prefix] [tau] [hash_bitwidth]"
+#else
+  if (argc < 11) {
+    std::cout
+        << "Usage: " << argv[0]
+        << "  [index_type<float/int8/uint8>]  [dist_fn (l2/mips/fast_l2)] "
+           "[data_file.bin]  "
+           "[memory_index_path]  [num_threads] "
+           "[query_file.bin]  [truthset.bin (use \"null\" for none)] "
+           " [K] [result_output_prefix]"
+#endif
            " [L1]  [L2] etc. See README for more information on parameters. "
         << std::endl;
     exit(-1);
