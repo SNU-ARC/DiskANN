@@ -171,7 +171,6 @@ int search_memory_index(int argc, char** argv) {
       auto qe = std::chrono::high_resolution_clock::now();
       std::chrono::duration<double> diff = qe - qs;
       latency_stats[i] = diff.count() * 1000000;
-      flags.reset();
     }
     auto e = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> diff = e - s;
@@ -205,7 +204,7 @@ int search_memory_index(int argc, char** argv) {
   std::cout << "=====================================" << std::endl;
 #endif
 #ifdef PROFILE
-  std::cout << "========Thread Latency Report========" << std::endl;
+  std::cout << "========Profile Report========" << std::endl;
   double* timer = (double*)calloc(4, sizeof(double));
   for (unsigned int tid = 0; tid < num_threads; tid++) {
     timer[0] += index.get_timer(tid * 4); // visited list init time

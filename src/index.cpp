@@ -1097,17 +1097,16 @@ namespace diskann {
   void Index<T, TagT>::optimize_graph() {  // use after build or load
     _data_len = (_aligned_dim + 1) * sizeof(float);
     _neighbor_len = (_width + 1) * sizeof(unsigned);
+    _node_size = _data_len + _neighbor_len;
 #ifdef ADA_NNS
     uint64_t _hash_len = (_hash_bitwidth >> 3);
-    _node_size = _data_len + _neighbor_len;
-    uint64_t _hash_function_size = _aligned_dim * _hash_len;
+    uint64_t _hash_function_size = _aligned_dim * _hash_bitwidth * sizeof(unsigned);
 #ifdef MMAP_HUGETLB
     _opt_graph = (char *) mmap(NULL, _node_size * _nd + _hash_size * _nd + _hash_function_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_POPULATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
 #else
     _opt_graph = (char *) malloc(_node_size * _nd + _hash_len * _nd + _hash_function_size);
 #endif
 #else
-    _node_size = _data_len + _neighbor_len;
 #ifdef MMAP_HUGETLB
     _opt_graph = (char *) mmap(NULL, _node_size * _nd, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_POPULATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
 #else
@@ -1961,30 +1960,29 @@ namespace diskann {
     DistanceFastL2<T>* dist_fast = (DistanceFastL2<T>*) _distance;
     uint64_t _hash_len = (_hash_bitwidth >> 3);
 
-    std::cout << "GenerateHashValue" << std::endl;
+    std::cout << "GenerateHashedSet" << std::endl;
     auto s = std::chrono::high_resolution_clock::now();
 #pragma omp parallel for schedule(dynamic, 1)
     for (unsigned i = 0; i < _nd; i++) {
-      unsigned* hash_value = (unsigned*)(_opt_graph + _node_size * _nd + _hash_len * i);
+      _hashed_set = (unsigned*)(_opt_graph + _node_size * _nd + _hash_len * i);
       T* vertex = (T*)(_opt_graph + _node_size * i + sizeof(float));
-
       for (unsigned num_integer = 0; num_integer < _hash_bitwidth >> 5; num_integer++) {
         std::bitset<32> temp_bool;
         for (unsigned bit_count = 0; bit_count < 32; bit_count++) {
           temp_bool.set(bit_count, (dist_fast->DistanceInnerProduct<T>::inner_product(vertex, &_hash_function[_aligned_dim * (32 * num_integer + bit_count)], (unsigned)_aligned_dim)) > 0);
           }
         for (unsigned bit_count = 0; bit_count < 32; bit_count++) {
-          hash_value[num_integer] = (unsigned)(temp_bool.to_ulong());
+          _hashed_set[num_integer] = (unsigned)(temp_bool.to_ulong());
         }
       }
     }
     auto e = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> diff = e - s;
-//    std::cout << "HashValue generation time: " << diff.count() * 1000 << std::endl;;
+//    std::cout << "HashedSet generation time: " << diff.count() * 1000 << std::endl;;
 
     std::ofstream file_hashed_set(file_name, std::ios::binary | std::ios::out);
+    _hashed_set = (unsigned*)(_opt_graph + _node_size * _nd);
     for (unsigned i = 0; i < _nd; i++) {
-      _hashed_set = (unsigned*)(_opt_graph + _node_size * _nd);
       for (unsigned j = 0; j < (_hash_len >> 2); j++) {
         file_hashed_set.write((char*)(_hashed_set + (_hash_len >> 2) * i + j), 4);
       }
@@ -2019,7 +2017,7 @@ namespace diskann {
     std::ifstream file_hashed_set(file_name, std::ios::binary);
     uint64_t _hash_len = (_hash_bitwidth >> 3);
     if (file_hashed_set.is_open()) {
-      std::cout << "LoadHashValue" << std::endl;
+      std::cout << "ReadHashedSet" << std::endl;
       _hashed_set = (unsigned*)(_opt_graph + _node_size * _nd);
       for (unsigned i = 0; i < _nd; i++) {
         for (unsigned j = 0; j < (_hash_len >> 2); j++) {
