@@ -23,7 +23,7 @@ vamana_sift1M() {
   # Build proximity graph
   if [ ! -f "sift1M.index" ]; then
     echo "Generating Vamana index"
-    ./build_memory_index float l2 sift1M/sift_base.fvecs.bin sift1M.index 70 75 1.2 24
+    ./build_memory_index float l2 sift1M/sift_base.fvecs.bin sift1M.index 70 75 1.2 ${MAX_THREADS} # [L] [R] [alpha] [num_threads]
   fi
 
   # Perform search
@@ -51,7 +51,7 @@ vamana_sift10M() {
   # Build proximity graph
   if [ ! -f "sift10M.index" ]; then
     echo "Generating Vamana index"
-    ./build_memory_index float l2 sift10M/sift10m_base.fvecs.bin sift10M.index 70 75 1.2 24
+    ./build_memory_index float l2 sift10M/sift10m_base.fvecs.bin sift10M.index 70 75 1.2 ${MAX_THREADS} # [L] [R] [alpha] [num_threads]
   fi
 
   # Perform search
@@ -79,7 +79,7 @@ vamana_gist1M() {
   # Build proximity graph
   if [ ! -f "gist1M.index" ]; then
     echo "Generating Vamana index"
-    ./build_memory_index float l2 gist1M/gist_base.fvecs.bin gist1M.index 70 75 1.2 24
+    ./build_memory_index float l2 gist1M/gist_base.fvecs.bin gist1M.index 70 75 1.2 ${MAX_THREADS} # [L] [R] [alpha] [num_threads]
   fi
 
   # Perform search
@@ -107,7 +107,7 @@ vamana_crawl() {
   # Build proximity graph
   if [ ! -f "crawl.index" ]; then
     echo "Generating Vamana index"
-    ./build_memory_index float l2 crawl/crawl_base.fvecs.bin crawl.index 70 75 1.2 24
+    ./build_memory_index float l2 crawl/crawl_base.fvecs.bin crawl.index 70 75 1.2 ${MAX_THREADS} # [L] [R] [alpha] [num_threads]
   fi
 
   # Perform search
@@ -135,7 +135,7 @@ vamana_deep1M() {
   # Build proximity graph
   if [ ! -f "deep1M.index" ]; then
     echo "Generating Vamana index"
-    ./build_memory_index float l2 deep1M/deep1m_base.fvecs.bin deep1M.index 70 75 1.2 24
+    ./build_memory_index float l2 deep1M/deep1m_base.fvecs.bin deep1M.index 70 75 1.2 ${MAX_THREADS} # [L] [R] [alpha] [num_threads]
   fi
 
   # Perform search
@@ -163,7 +163,7 @@ vamana_deep10M() {
   # Build proximity graph
   if [ ! -f "deep10M.index" ]; then
     echo "Generating Vamana index"
-    ./build_memory_index float l2 deep10M/deep10M_base.fvecs.bin deep10M.index 70 75 1.2 24
+    ./build_memory_index float l2 deep10M/deep10M_base.fvecs.bin deep10M.index 70 75 1.2 ${MAX_THREADS} # [L] [R] [alpha] [num_threads]
   fi
 
   # Perform search
@@ -192,7 +192,7 @@ vamana_deep100M_1T() {
   # Build proximity graph
   if [ ! -f "deep100M.index" ]; then
     echo "Generating Vamana index"
-    ./build_memory_index float l2 deep100M/deep100M_base.fvecs.bin deep100M.index 70 75 1.2 24
+    ./build_memory_index float l2 deep100M/deep100M_base.fvecs.bin deep100M.index 70 75 1.2 ${MAX_THREADS} # [L] [R] [alpha] [num_threads]
   fi
 
   # Perform search
@@ -223,7 +223,7 @@ vamana_deep100M_16T() {
     # Build proximity graph
     if [ ! -f "deep100M_${id}.index" ]; then
       echo "Generating Vamana index"
-      ./build_memory_index float l2 deep100M/deep100M_base_${id}.fvecs.bin deep100M_${id}.index 70 75 1.2 24
+      ./build_memory_index float l2 deep100M/deep100M_base_${id}.fvecs.bin deep100M_${id}.index 70 75 1.2 ${MAX_THREADS} # [L] [R] [alpha] [num_threads]4
     fi
   done
   echo "Perform searching using Vamana index (deep100M_L${1}K${2}T${4})"
@@ -245,94 +245,98 @@ vamana_deep100M_16T() {
   cat deep100M_search_L${1}K${2}_${3}_T${4}.log | awk '{sum += $5;} {if(NR==3) min = $2} {if($2 < min) min = $2} END { print "min_qps: " min; print "recall: " sum; }' >> deep100M_search_L${1}K${2}_${3}_T${4}.log 
 }
 
-if [ "${1}" == "sift1M" ]; then
-  for k in ${K[@]}; do
-    for l_size in ${L_SIZE[@]}; do
-      declare -i l=l_size
-      for t in ${THREAD[@]}; do
-        vamana_sift1M ${l} ${k} baseline ${t}
+if [[ ${#} -eq 1 ]]; then
+  if [ "${1}" == "sift1M" ]; then
+    for k in ${K[@]}; do
+      for l_size in ${L_SIZE[@]}; do
+        declare -i l=l_size
+        for t in ${THREAD[@]}; do
+          vamana_sift1M ${l} ${k} baseline ${t}
+        done
       done
     done
-  done
-elif [ "${1}" == "sift10M" ]; then
-  for k in ${K[@]}; do
-    for l_size in ${L_SIZE[@]}; do
-      declare -i l=l_size
-      for t in ${THREAD[@]}; do
-        vamana_sift10M ${l} ${k} baseline ${t}
+  elif [ "${1}" == "sift10M" ]; then
+    for k in ${K[@]}; do
+      for l_size in ${L_SIZE[@]}; do
+        declare -i l=l_size
+        for t in ${THREAD[@]}; do
+          vamana_sift10M ${l} ${k} baseline ${t}
+        done
       done
     done
-  done
-elif [ "${1}" == "gist1M" ]; then
-  for k in ${K[@]}; do
-    for l_size in ${L_SIZE[@]}; do
-      declare -i l=l_size
-      for t in ${THREAD[@]}; do
-        vamana_gist1M ${l} ${k} baseline ${t}
+  elif [ "${1}" == "gist1M" ]; then
+    for k in ${K[@]}; do
+      for l_size in ${L_SIZE[@]}; do
+        declare -i l=l_size
+        for t in ${THREAD[@]}; do
+          vamana_gist1M ${l} ${k} baseline ${t}
+        done
       done
     done
-  done
-elif [ "${1}" == "crawl" ]; then
-  for k in ${K[@]}; do
-    for l_size in ${L_SIZE[@]}; do
-      declare -i l=l_size
-      for t in ${THREAD[@]}; do
-        vamana_crawl ${l} ${k} baseline ${t}
+  elif [ "${1}" == "crawl" ]; then
+    for k in ${K[@]}; do
+      for l_size in ${L_SIZE[@]}; do
+        declare -i l=l_size
+        for t in ${THREAD[@]}; do
+          vamana_crawl ${l} ${k} baseline ${t}
+        done
       done
     done
-  done
-elif [ "${1}" == "deep1M" ]; then
-  for k in ${K[@]}; do
-    for l_size in ${L_SIZE[@]}; do
-      declare -i l=l_size
-      for t in ${THREAD[@]}; do
-        vamana_deep1M ${l} ${k} baseline ${t}
+  elif [ "${1}" == "deep1M" ]; then
+    for k in ${K[@]}; do
+      for l_size in ${L_SIZE[@]}; do
+        declare -i l=l_size
+        for t in ${THREAD[@]}; do
+          vamana_deep1M ${l} ${k} baseline ${t}
+        done
       done
     done
-  done
-elif [ "${1}" == "deep10M" ]; then
-  for k in ${K[@]}; do
-    for l_size in ${L_SIZE[@]}; do
-      declare -i l=l_size
-      for t in ${THREAD[@]}; do
-        vamana_deep10M ${l} ${k} baseline ${t}
+  elif [ "${1}" == "deep10M" ]; then
+    for k in ${K[@]}; do
+      for l_size in ${L_SIZE[@]}; do
+        declare -i l=l_size
+        for t in ${THREAD[@]}; do
+          vamana_deep10M ${l} ${k} baseline ${t}
+        done
       done
     done
-  done
-elif [ "${1}" == "deep100M" ]; then
-  for k in ${K[@]}; do
-    for l_size in ${L_SIZE[@]}; do
-      declare -i l=l_size
-      for t in ${THREAD[@]}; do
-        vamana_deep100M ${l} ${k} baseline ${t}
+  elif [ "${1}" == "deep100M" ]; then
+    for k in ${K[@]}; do
+      for l_size in ${L_SIZE[@]}; do
+        declare -i l=l_size
+        for t in ${THREAD[@]}; do
+          vamana_deep100M ${l} ${k} baseline ${t}
+        done
       done
     done
-  done
-elif [ "${1}" == "deep100M_16T" ]; then
-  for k in ${K[@]}; do
-    for l_size in ${L_SIZE[@]}; do
-      declare -i l=l_size
-      for t in ${THREAD[@]}; do
-        vamana_deep100M_16T ${l} ${k} baseline ${t}
+  elif [ "${1}" == "deep100M_16T" ]; then
+    for k in ${K[@]}; do
+      for l_size in ${L_SIZE[@]}; do
+        declare -i l=l_size
+        for t in ${THREAD[@]}; do
+          vamana_deep100M_16T ${l} ${k} baseline ${t}
+        done
       done
     done
-  done
-elif [ "${1}" == "all" ]; then
-  for k in ${K[@]}; do
-    for l_size in ${L_SIZE[@]}; do
-      declare -i l=l_size
-      for t in ${THREAD[@]}; do
-        vamana_sift1M ${l} ${k} baseline ${t}
-#        vamana_sift10M ${l} ${k} baseline ${t}
-        vamana_gist1M ${l} ${k} baseline ${t}
-        vamana_crawl ${l} ${k} baseline ${t}
-        vamana_deep1M ${l} ${k} baseline ${t}
-#        vamana_deep10M ${l} ${k} baseline ${t}
-        vamana_deep100M ${l} ${k} baseline ${t}
-        vamana_deep100M_16T ${l} ${k} baseline 1
+  elif [ "${1}" == "all" ]; then
+    for k in ${K[@]}; do
+      for l_size in ${L_SIZE[@]}; do
+        declare -i l=l_size
+        for t in ${THREAD[@]}; do
+          vamana_sift1M ${l} ${k} baseline ${t}
+          #        vamana_sift10M ${l} ${k} baseline ${t}
+          vamana_gist1M ${l} ${k} baseline ${t}
+          vamana_crawl ${l} ${k} baseline ${t}
+          vamana_deep1M ${l} ${k} baseline ${t}
+          #        vamana_deep10M ${l} ${k} baseline ${t}
+          vamana_deep100M ${l} ${k} baseline ${t}
+          vamana_deep100M_16T ${l} ${k} baseline 1
+        done
       done
     done
-  done
+  else
+    echo "Usage: ./evaluate_baseline.sh [dataset]"
+  fi
 else
-  echo "Please use either 'sift1M', 'gist1M', 'crawl', 'deep1M', 'deep100M', 'deep100M_16T' as an argument"
+  echo "Usage: ./evaluate_baseline.sh [dataset]"
 fi
