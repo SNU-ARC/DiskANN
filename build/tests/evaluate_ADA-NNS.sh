@@ -300,12 +300,12 @@ if [[ ${#} -eq 1 ]]; then
         done
       done
     done
-  elif [ "${1}" == "deep100M" ]; then
+  elif [ "${1}" == "deep100M_1T" ]; then
     for k in ${K[@]}; do
       for l_size in ${L_SIZE[@]}; do
         declare -i l=l_size
         for t in ${THREAD[@]}; do
-          vamana_deep100M ${l} ${k} ADA-NNS ${t}
+          vamana_deep100M_1T ${l} ${k} ADA-NNS ${t}
         done
       done
     done
@@ -329,7 +329,7 @@ if [[ ${#} -eq 1 ]]; then
           vamana_crawl ${l} ${k} ADA-NNS ${t}
           vamana_deep1M ${l} ${k} ADA-NNS ${t}
           #        vamana_deep10M ${l} ${k} ADA-NNS ${t}
-          vamana_deep100M ${l} ${k} ADA-NNS ${t}
+          vamana_deep100M_1T ${l} ${k} ADA-NNS ${t}
           vamana_deep100M_16T ${l} ${k} ADA-NNS 1
         done
       done
