@@ -112,13 +112,13 @@ namespace diskann {
 #endif
 #ifdef ADA_NNS
     DISKANN_DLLEXPORT void set_tau(const float tau) { _tau = tau; }
-    DISKANN_DLLEXPORT void set_hash_bitwidth(const uint64_t hash_bitwidth) { _hash_bitwidth = hash_bitwidth; }
+    DISKANN_DLLEXPORT void set_hash_bitwidth(const unsigned hash_bitwidth) { _hash_bitwidth = hash_bitwidth; }
     DISKANN_DLLEXPORT void generate_hash_function(const char* file_name);
     DISKANN_DLLEXPORT void generate_hashed_set(const char* file_name);
     DISKANN_DLLEXPORT bool read_hash_function(const char* file_name);
     DISKANN_DLLEXPORT bool read_hashed_set(const char* file_name);
-    DISKANN_DLLEXPORT void query_hash(const T* query, unsigned* hashed_query, float* query_abs, unsigned hash_size);
-    DISKANN_DLLEXPORT unsigned candidate_selection(const __m256i* hashed_query_avx, std::vector<HashNeighbor>& theta_queue, const unsigned* neighbors, const unsigned MaxM, const unsigned hash_size, const T* query); 
+    DISKANN_DLLEXPORT void query_hash(const T* query, unsigned* hashed_query, const uint64_t hash_size);
+    DISKANN_DLLEXPORT unsigned candidate_selection(const unsigned* hashed_query, const __m256i* hashed_query_avx, std::vector<HashNeighbor>& theta_queue, const unsigned* neighbors, const unsigned MaxM, const uint64_t hash_size); 
 #endif
 #ifdef PROFILE
     DISKANN_DLLEXPORT void set_timer(const unsigned num_threads) { _profile_time.resize(num_threads * 4, 0.0); }

@@ -1166,13 +1166,12 @@ namespace diskann {
     auto query_hash_start = std::chrono::high_resolution_clock::now();
 #endif
     std::vector<HashNeighbor> selected_pool(100);
-    unsigned hash_size = _hash_bitwidth >> 5;
+    uint64_t hash_size = _hash_bitwidth >> 5;
     unsigned* hashed_query = new unsigned[hash_size];
-    float query_abs = 0;
-    query_hash (query, hashed_query, &query_abs, hash_size);
-#ifdef USE_AVX2
+    query_hash (query, hashed_query, hash_size);
     unsigned int hash_avx_size = hash_size >> 3;
     __m256i hashed_query_avx[hash_avx_size];
+#ifdef USE_AVX2
     for (unsigned int m = 0; m < (hash_avx_size); m++) {
       hashed_query_avx[m] = _mm256_loadu_si256((__m256i*)&hashed_query[m << 3]);
     }
@@ -1238,7 +1237,7 @@ namespace diskann {
 #ifdef PROFILE
         auto cand_select_start = std::chrono::high_resolution_clock::now();
 #endif
-        unsigned selected_pool_size = candidate_selection (hashed_query_avx, selected_pool, neighbors, MaxM, hash_size, query);
+        unsigned selected_pool_size = candidate_selection (hashed_query, hashed_query_avx, selected_pool, neighbors, MaxM, hash_size);
 #ifdef PROFILE
         auto cand_select_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> cand_select_diff = cand_select_end - cand_select_start;
@@ -2033,9 +2032,8 @@ namespace diskann {
   }
 
   template<typename T, typename TagT>
-  void Index<T, TagT>::query_hash (const T* query, unsigned* hashed_query, float* query_abs, unsigned hash_size) {
+  void Index<T, TagT>::query_hash (const T* query, unsigned* hashed_query, const uint64_t hash_size) {
     DistanceFastL2<T> *dist_fast = (DistanceFastL2<T> *) _distance;
-    *query_abs = sqrtf(dist_fast->norm(query, (unsigned)_aligned_dim));
     for (unsigned num_integer = 0; num_integer < hash_size; num_integer++) {
       std::bitset<32> temp_bool;
       for (unsigned bit_count = 0; bit_count < 32; bit_count++) {
@@ -2048,12 +2046,12 @@ namespace diskann {
   }
 
   template<typename T, typename TagT>
-  unsigned Index<T, TagT>::candidate_selection(const __m256i* hashed_query_avx, std::vector<HashNeighbor>& selected_pool, const unsigned* neighbors, const unsigned MaxM, const unsigned hash_size, const T* query) {
+  unsigned Index<T, TagT>::candidate_selection(const unsigned* hashed_query, const __m256i* hashed_query_avx, std::vector<HashNeighbor>& selected_pool, const unsigned* neighbors, const unsigned MaxM, const uint64_t hash_size) {
     unsigned prefetch_counter = 0;
     for (; prefetch_counter < 8; ++prefetch_counter) {
       unsigned int id = neighbors[prefetch_counter];
       for (unsigned n = 0; n < hash_size; n += 8)
-        _mm_prefetch(_hashed_set + (uint64_t)hash_size * id + n, _MM_HINT_T0);
+        _mm_prefetch(_hashed_set + hash_size * id + n, _MM_HINT_T0);
     }
 
     unsigned long long hamming_result[4];
@@ -2066,18 +2064,18 @@ namespace diskann {
       if (prefetch_counter < MaxM) {
         unsigned int id = neighbors[prefetch_counter];
         for (unsigned n = 0; n < hash_size; n += 8)
-          _mm_prefetch(_hashed_set + (uint64_t)hash_size * id + n, _MM_HINT_T0);
+          _mm_prefetch(_hashed_set + hash_size * id + n, _MM_HINT_T0);
         prefetch_counter++;
       }
       unsigned id = neighbors[m];
       unsigned hamming_distance = 0;
-      unsigned* hash_value_address = _hashed_set + (uint64_t)hash_size * id;
+      unsigned* hashed_set_address = _hashed_set + hash_size * id;
 #ifdef USE_AVX2
       for (unsigned i = 0; i < (hash_size >> 3); i++) {
-        __m256i hash_value_avx;
+        __m256i hashed_set_avx;
         __m256i hamming_result_avx;
-        hash_value_avx = _mm256_stream_load_si256((__m256i*)(hash_value_address));
-        hamming_result_avx = _mm256_xor_si256(hashed_query_avx[i], hash_value_avx);
+        hashed_set_avx = _mm256_stream_load_si256((__m256i*)(hashed_set_address));
+        hamming_result_avx = _mm256_xor_si256(hashed_query_avx[i], hashed_set_avx);
 #ifdef __AVX512VPOPCNTDQ__
         hamming_result_avx = _mm256_popcnt_epi64(hamming_result_avx);
         _mm256_storeu_si256((__m256i*)&hamming_result, hamming_result_avx);
@@ -2089,11 +2087,11 @@ namespace diskann {
           hamming_distance += _mm_popcnt_u64(hamming_result[j]);
         }
 #endif
-        hash_value_address += 8;
+        hashed_set_address += 8;
       }
 #else
       for (unsigned num_integer = 0; num_integer < _hash_bitwidth / (8 * sizeof(unsigned)); num_integer++) {
-        hamming_result[num_integer] = hashed_query[num_integer] ^ hash_value_address[num_integer];
+        hamming_result[num_integer] = hashed_query[num_integer] ^ hashed_set_address[num_integer];
         hamming_distance += __builtin_popcount(hamming_result[num_integer]);
       }
 #endif

@@ -111,20 +111,20 @@ int search_memory_index(int argc, char** argv) {
 #ifdef ADA_NNS
   // [ARC-SJ]: Read or generate hash function & hashed set
   std::string hash_function_bin = memory_index_file;
-  std::string hash_value_bin = memory_index_file;
+  std::string hashed_set_bin = memory_index_file;
   hash_function_bin += ".hash_function_";
-  hash_value_bin += ".hash_vector_";
+  hashed_set_bin += ".hashed_set_";
   hash_function_bin += std::to_string(hash_bitwidth);
-  hash_value_bin += std::to_string(hash_bitwidth);
+  hashed_set_bin += std::to_string(hash_bitwidth);
   hash_function_bin += "b";
-  hash_value_bin += "b";
+  hashed_set_bin += "b";
   if (index.read_hash_function(hash_function_bin.c_str())) {
-    if (!index.read_hashed_set(hash_value_bin.c_str()))
-      index.generate_hashed_set(hash_value_bin.c_str());
+    if (!index.read_hashed_set(hashed_set_bin.c_str()))
+      index.generate_hashed_set(hashed_set_bin.c_str());
   }
   else {
     index.generate_hash_function(hash_function_bin.c_str());
-    index.generate_hashed_set(hash_value_bin.c_str());
+    index.generate_hashed_set(hashed_set_bin.c_str());
   }
 #endif
 #ifdef PROFILE
