@@ -1237,7 +1237,7 @@ namespace diskann {
 #ifdef PROFILE
         auto cand_select_start = std::chrono::high_resolution_clock::now();
 #endif
-        unsigned selected_pool_size = candidate_selection (hashed_query, hashed_query_avx, selected_pool, neighbors, MaxM, hash_size);
+        unsigned selected_pool_size = candidate_selection (hashed_query, hashed_query_avx, selected_pool, flags, neighbors, MaxM, hash_size);
 #ifdef PROFILE
         auto cand_select_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> cand_select_diff = cand_select_end - cand_select_start;
@@ -2046,9 +2046,22 @@ namespace diskann {
   }
 
   template<typename T, typename TagT>
-  unsigned Index<T, TagT>::candidate_selection(const unsigned* hashed_query, const __m256i* hashed_query_avx, std::vector<HashNeighbor>& selected_pool, const unsigned* neighbors, const unsigned MaxM, const uint64_t hash_size) {
+  unsigned Index<T, TagT>::candidate_selection(const unsigned* hashed_query, const __m256i* hashed_query_avx, std::vector<HashNeighbor>& selected_pool, boost::dynamic_bitset<>& flags, const unsigned* neighbors, const unsigned MaxM, const uint64_t hash_size) {
+    unsigned new_MaxM = 0;
+    unsigned selected_pool_size_limit = (unsigned)ceil(MaxM * _tau);
+    for (unsigned m = 0; m < MaxM; m++) {
+      unsigned id = neighbors[m];
+      if (flags[id]) continue;
+      HashNeighbor cat_hamming_id (id, 0);
+      selected_pool[new_MaxM] = cat_hamming_id;
+      new_MaxM++;
+    }
+    if (new_MaxM < selected_pool_size_limit) {
+      return new_MaxM;
+    }
+    selected_pool_size_limit = (unsigned)ceil(new_MaxM * _tau);
     unsigned prefetch_counter = 0;
-    for (; prefetch_counter < 8; ++prefetch_counter) {
+    for (; prefetch_counter < new_MaxM; ++prefetch_counter) {
       unsigned int id = neighbors[prefetch_counter];
       for (unsigned n = 0; n < hash_size; n += 8)
         _mm_prefetch(_hashed_set + hash_size * id + n, _MM_HINT_T0);
@@ -2056,18 +2069,17 @@ namespace diskann {
 
     unsigned long long hamming_result[4];
     unsigned selected_pool_size = 0;
-    unsigned selected_pool_size_limit = (unsigned)ceil(MaxM * _tau);
     HashNeighbor hamming_distance_max(0, 0);
     std::vector<HashNeighbor>::iterator index;
 
-    for (unsigned m = 0; m < MaxM; m++) {
-      if (prefetch_counter < MaxM) {
-        unsigned int id = neighbors[prefetch_counter];
-        for (unsigned n = 0; n < hash_size; n += 8)
-          _mm_prefetch(_hashed_set + hash_size * id + n, _MM_HINT_T0);
-        prefetch_counter++;
-      }
-      unsigned id = neighbors[m];
+    for (unsigned m = 0; m < new_MaxM; m++) {
+//      if (prefetch_counter < MaxM) {
+//        unsigned int id = neighbors[prefetch_counter];
+//        for (unsigned n = 0; n < hash_size; n += 8)
+//          _mm_prefetch(_hashed_set + hash_size * id + n, _MM_HINT_T0);
+//        prefetch_counter++;
+//      }
+      unsigned id = selected_pool[m].id;
       unsigned hamming_distance = 0;
       unsigned* hashed_set_address = _hashed_set + hash_size * id;
 #ifdef USE_AVX2

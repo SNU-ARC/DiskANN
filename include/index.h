@@ -118,7 +118,7 @@ namespace diskann {
     DISKANN_DLLEXPORT bool read_hash_function(const char* file_name);
     DISKANN_DLLEXPORT bool read_hashed_set(const char* file_name);
     DISKANN_DLLEXPORT void query_hash(const T* query, unsigned* hashed_query, const uint64_t hash_size);
-    DISKANN_DLLEXPORT unsigned candidate_selection(const unsigned* hashed_query, const __m256i* hashed_query_avx, std::vector<HashNeighbor>& theta_queue, const unsigned* neighbors, const unsigned MaxM, const uint64_t hash_size); 
+    DISKANN_DLLEXPORT unsigned candidate_selection(const unsigned* hashed_query, const __m256i* hashed_query_avx, std::vector<HashNeighbor>& selected_pool, boost::dynamic_bitset<>& flags, const unsigned* neighbors, const unsigned MaxM, const uint64_t hash_size); 
 #endif
 #ifdef PROFILE
     DISKANN_DLLEXPORT void set_timer(const unsigned num_threads) { _profile_time.resize(num_threads * 4, 0.0); }
