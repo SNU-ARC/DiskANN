@@ -1102,7 +1102,7 @@ namespace diskann {
     uint64_t _hash_len = (_hash_bitwidth >> 3);
     uint64_t _hash_function_size = _aligned_dim * _hash_bitwidth * sizeof(unsigned);
 #ifdef MMAP_HUGETLB
-    _opt_graph = (char *) mmap(NULL, _node_size * _nd + _hash_size * _nd + _hash_function_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_POPULATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
+    _opt_graph = (char *) mmap(NULL, _node_size * _nd + _hash_len * _nd + _hash_function_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_POPULATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
 #else
     _opt_graph = (char *) malloc(_node_size * _nd + _hash_len * _nd + _hash_function_size);
 #endif
@@ -1133,7 +1133,7 @@ namespace diskann {
   }
 
   template<typename T, typename TagT>
-  void Index<T, TagT>::search_with_opt_graph(const T *query, boost::dynamic_bitset<>& flags, size_t K, size_t L,
+  void Index<T, TagT>::search_with_opt_graph(const T *query, /*boost::dynamic_bitset<>& flags,*/ size_t K, size_t L,
                                              unsigned *indices) {
     DistanceFastL2<T> *dist_fast = (DistanceFastL2<T> *) _distance;
 
@@ -1149,8 +1149,8 @@ namespace diskann {
     auto visited_list_init_start = std::chrono::high_resolution_clock::now();
 #endif
 //  [ARC-SJ] Initialize visited list, allocation moved to main module
-//    boost::dynamic_bitset<> flags{_nd, 0};
-    flags.reset(); 
+    boost::dynamic_bitset<> flags{_nd, 0};
+//    flags.reset(); 
 #ifdef PROFILE
     auto visited_list_init_end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> visited_list_init_diff = visited_list_init_end - visited_list_init_start;
