@@ -188,7 +188,7 @@ int search_memory_index(int argc, char** argv) {
       mean_latency += latency_stats[q];
     }
     mean_latency /= query_num;
-    float qps = 1000000 / (float) mean_latency;
+    float qps = query_num / (float) diff.count();
 
     std::cout << std::setw(4) << L << std::setw(12) << qps << std::setw(18)
               << (float) mean_latency << std::setw(15)
