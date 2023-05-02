@@ -44,6 +44,10 @@ The parameters used to build each indices are as follows.
 
 ### Search with Vamana Index
 
+Dataset should be located in the directory `DiskANN/build/tests/.` as the following format.
+
+e.g., `sift1M`, `gist1M`
+
 To use the greedy search, use the `tests/evaluate_baseline.sh` script.
 ```
 cd tests/
